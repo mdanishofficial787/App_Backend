@@ -5,10 +5,11 @@ const Otp = require("../Schema/OTP.JS");
 // ==========================================
 // RESET DRIVER PASSWORD
 // ==========================================
+
 const resetPassword = async (req, res) => {
     try {
         const {
-            Email,
+            driverId,
             NewPassword,
             ConfirmPassword,
         } = req.body;
@@ -16,22 +17,19 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // VALIDATION
         // ==========================================
-        if (!Email || !NewPassword || !ConfirmPassword) {
+
+        if (!driverId || !NewPassword || !ConfirmPassword) {
             return res.status(400).json({
                 success: false,
                 message:
-                    "Email, new password and confirm password are required",
+                    "Driver ID, new password and confirm password are required",
             });
         }
 
         // ==========================================
-        // CLEAN EMAIL
-        // ==========================================
-        const cleanEmail = Email.toLowerCase().trim();
-
-        // ==========================================
         // CHECK PASSWORD MATCH
         // ==========================================
+
         if (NewPassword !== ConfirmPassword) {
             return res.status(400).json({
                 success: false,
@@ -43,8 +41,9 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // FIND VERIFIED OTP
         // ==========================================
+
         const otpRecord = await Otp.findOne({
-            Email: cleanEmail,
+            driverId: driverId,
             verified: true,
         }).sort({
             createdAt: -1,
@@ -60,9 +59,8 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // FIND DRIVER
         // ==========================================
-        const driver = await Driver.findOne({
-            Email: cleanEmail,
-        });
+
+        const driver = await Driver.findById(driverId);
 
         if (!driver) {
             return res.status(404).json({
@@ -74,6 +72,7 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // HASH NEW PASSWORD
         // ==========================================
+
         const hashedPassword = await bcrypt.hash(
             NewPassword,
             10
@@ -82,6 +81,7 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // UPDATE PASSWORD
         // ==========================================
+
         driver.Password = hashedPassword;
 
         await driver.save();
@@ -89,13 +89,15 @@ const resetPassword = async (req, res) => {
         // ==========================================
         // DELETE USED OTP
         // ==========================================
+
         await Otp.deleteMany({
-            Email: cleanEmail,
+            driverId: driverId,
         });
 
         // ==========================================
-        // RESPONSE
+        // SUCCESS
         // ==========================================
+
         return res.status(200).json({
             success: true,
             message: "Password reset successfully",

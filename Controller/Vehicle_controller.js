@@ -6,6 +6,7 @@ const cloudinary = require("../config/cloudinary");
 // ==========================================
 // UPLOAD FILE TO CLOUDINARY
 // ==========================================
+
 const uploadToCloudinary = (file, folder) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -32,6 +33,7 @@ const uploadToCloudinary = (file, folder) => {
 // ==========================================
 // DELETE IMAGE FROM CLOUDINARY
 // ==========================================
+
 const deleteFromCloudinary = (publicId) => {
   return new Promise((resolve, reject) => {
     if (!publicId) {
@@ -62,6 +64,7 @@ const deleteFromCloudinary = (publicId) => {
 // ==========================================
 // 1. CREATE VEHICLE
 // ==========================================
+
 const createVehicle = async (req, res) => {
   const uploadedPublicIds = [];
 
@@ -69,6 +72,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // GET DRIVER ID FROM JWT
     // ==========================================
+
     const driverId = req.user?.id;
 
     if (
@@ -84,6 +88,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // CHECK DRIVER EXISTS
     // ==========================================
+
     const driver = await Driver.findById(driverId);
 
     if (!driver) {
@@ -96,6 +101,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // GET VEHICLE DATA
     // ==========================================
+
     const {
       vehicleMake,
       vehicleModel,
@@ -108,6 +114,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // BASIC VALIDATION
     // ==========================================
+
     if (
       !vehicleMake ||
       !vehicleModel ||
@@ -118,13 +125,15 @@ const createVehicle = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Please provide all required vehicle information",
+        message:
+          "Please provide all required vehicle information",
       });
     }
 
     // ==========================================
     // DUPLICATE REGISTRATION NUMBER
     // ==========================================
+
     const existingVehicle = await Vehicle.findOne({
       registrationNumber: registrationNumber.trim(),
     });
@@ -140,14 +149,19 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // GET FILES
     // ==========================================
+
     const files = req.files || {};
 
-    const registrationBook = files.registrationBook?.[0];
-    const frontView = files.frontView?.[0];
+    const registrationBook =
+      files.registrationBook?.[0];
+
+    const frontView =
+      files.frontView?.[0];
 
     // ==========================================
     // REQUIRED FILE VALIDATION
     // ==========================================
+
     if (!registrationBook) {
       return res.status(400).json({
         success: false,
@@ -163,25 +177,40 @@ const createVehicle = async (req, res) => {
     }
 
     // ==========================================
-    // PNG VALIDATION FOR REGISTRATION BOOK
+    // ALLOWED IMAGE TYPES
     // ==========================================
-    if (registrationBook.mimetype !== "image/png") {
-      return res.status(400).json({
-        success: false,
-        message: "Registration book must be a PNG image",
-      });
-    }
 
-    // ==========================================
-    // IMAGE VALIDATION FOR FRONT VIEW
-    // ==========================================
     const allowedImageTypes = [
       "image/jpeg",
       "image/jpg",
       "image/png",
     ];
 
-    if (!allowedImageTypes.includes(frontView.mimetype)) {
+    // ==========================================
+    // REGISTRATION BOOK VALIDATION
+    // ==========================================
+
+    if (
+      !allowedImageTypes.includes(
+        registrationBook.mimetype
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Registration book must be JPG, JPEG or PNG image",
+      });
+    }
+
+    // ==========================================
+    // FRONT VIEW VALIDATION
+    // ==========================================
+
+    if (
+      !allowedImageTypes.includes(
+        frontView.mimetype
+      )
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -192,22 +221,26 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // UPLOAD TO CLOUDINARY
     // ==========================================
-    const [registrationBookUpload, frontViewUpload] =
-      await Promise.all([
-        uploadToCloudinary(
-          registrationBook,
-          "vehicles/registrationBooks"
-        ),
 
-        uploadToCloudinary(
-          frontView,
-          "vehicles/images"
-        ),
-      ]);
+    const [
+      registrationBookUpload,
+      frontViewUpload,
+    ] = await Promise.all([
+      uploadToCloudinary(
+        registrationBook,
+        "vehicles/registrationBooks"
+      ),
+
+      uploadToCloudinary(
+        frontView,
+        "vehicles/images"
+      ),
+    ]);
 
     // ==========================================
     // KEEP PUBLIC IDs FOR CLEANUP
     // ==========================================
+
     uploadedPublicIds.push(
       registrationBookUpload.public_id,
       frontViewUpload.public_id
@@ -216,9 +249,9 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // CREATE VEHICLE
     // ==========================================
+
     const vehicle = await Vehicle.create({
-      // IMPORTANT:
-      // Driver ID comes from JWT, NOT frontend
+      // Driver ID comes from JWT
       driver: driverId,
 
       vehicleMake: vehicleMake.trim(),
@@ -232,23 +265,28 @@ const createVehicle = async (req, res) => {
       registrationNumber:
         registrationNumber.trim(),
 
-      vehicleColor: vehicleColor.trim(),
+      vehicleColor:
+        vehicleColor.trim(),
 
       // ==========================================
       // REGISTRATION BOOK
       // ==========================================
+
       registrationBook: {
         url: registrationBookUpload.url,
-        public_id: registrationBookUpload.public_id,
+        public_id:
+          registrationBookUpload.public_id,
       },
 
       // ==========================================
       // VEHICLE IMAGES
       // ==========================================
+
       vehicleImages: {
         frontView: {
           url: frontViewUpload.url,
-          public_id: frontViewUpload.public_id,
+          public_id:
+            frontViewUpload.public_id,
         },
       },
 
@@ -259,6 +297,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // SUCCESS
     // ==========================================
+
     return res.status(201).json({
       success: true,
       message: "Vehicle registered successfully",
@@ -266,6 +305,7 @@ const createVehicle = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Vehicle registration error:",
       error
@@ -274,6 +314,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // CLEAN CLOUDINARY IF DB SAVE FAILS
     // ==========================================
+
     if (uploadedPublicIds.length > 0) {
       await Promise.allSettled(
         uploadedPublicIds.map((publicId) =>
@@ -285,6 +326,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // DUPLICATE KEY ERROR
     // ==========================================
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -296,6 +338,7 @@ const createVehicle = async (req, res) => {
     // ==========================================
     // SERVER ERROR
     // ==========================================
+
     return res.status(500).json({
       success: false,
       message: "Failed to register vehicle",
@@ -307,8 +350,10 @@ const createVehicle = async (req, res) => {
 // ==========================================
 // 2. GET MY VEHICLES
 // ==========================================
+
 const getVehicles = async (req, res) => {
   try {
+
     const driverId = req.user?.id;
 
     if (
@@ -335,6 +380,7 @@ const getVehicles = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Get vehicles error:",
       error
@@ -351,14 +397,17 @@ const getVehicles = async (req, res) => {
 // ==========================================
 // 3. GET MY VEHICLE BY ID
 // ==========================================
+
 const getVehicleById = async (req, res) => {
   try {
+
     const { id } = req.params;
     const driverId = req.user?.id;
 
     // ==========================================
     // VALIDATE DRIVER
     // ==========================================
+
     if (
       !driverId ||
       !mongoose.Types.ObjectId.isValid(driverId)
@@ -372,6 +421,7 @@ const getVehicleById = async (req, res) => {
     // ==========================================
     // VALIDATE VEHICLE ID
     // ==========================================
+
     if (
       !id ||
       !mongoose.Types.ObjectId.isValid(id)
@@ -385,6 +435,7 @@ const getVehicleById = async (req, res) => {
     // ==========================================
     // FIND ONLY THIS DRIVER'S VEHICLE
     // ==========================================
+
     const vehicle = await Vehicle.findOne({
       _id: id,
       driver: driverId,
@@ -406,6 +457,7 @@ const getVehicleById = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Get vehicle by ID error:",
       error
@@ -422,14 +474,17 @@ const getVehicleById = async (req, res) => {
 // ==========================================
 // 4. DELETE MY VEHICLE
 // ==========================================
+
 const deleteVehicle = async (req, res) => {
   try {
+
     const { id } = req.params;
     const driverId = req.user?.id;
 
     // ==========================================
     // VALIDATE DRIVER
     // ==========================================
+
     if (
       !driverId ||
       !mongoose.Types.ObjectId.isValid(driverId)
@@ -443,6 +498,7 @@ const deleteVehicle = async (req, res) => {
     // ==========================================
     // VALIDATE VEHICLE ID
     // ==========================================
+
     if (
       !id ||
       !mongoose.Types.ObjectId.isValid(id)
@@ -456,6 +512,7 @@ const deleteVehicle = async (req, res) => {
     // ==========================================
     // FIND ONLY THIS DRIVER'S VEHICLE
     // ==========================================
+
     const vehicle = await Vehicle.findOne({
       _id: id,
       driver: driverId,
@@ -471,6 +528,7 @@ const deleteVehicle = async (req, res) => {
     // ==========================================
     // CLOUDINARY FILES
     // ==========================================
+
     const publicIdsToDelete = [];
 
     if (
@@ -492,6 +550,7 @@ const deleteVehicle = async (req, res) => {
     // ==========================================
     // DELETE CLOUDINARY FILES
     // ==========================================
+
     if (publicIdsToDelete.length > 0) {
       await Promise.allSettled(
         publicIdsToDelete.map((publicId) =>
@@ -503,6 +562,7 @@ const deleteVehicle = async (req, res) => {
     // ==========================================
     // DELETE VEHICLE FROM MONGODB
     // ==========================================
+
     await Vehicle.findByIdAndDelete(id);
 
     return res.status(200).json({
@@ -512,6 +572,7 @@ const deleteVehicle = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Delete vehicle error:",
       error
@@ -528,6 +589,7 @@ const deleteVehicle = async (req, res) => {
 // ==========================================
 // EXPORTS
 // ==========================================
+
 module.exports = {
   createVehicle,
   getVehicles,

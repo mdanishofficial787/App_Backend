@@ -1,6 +1,5 @@
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-
 const Driver = require("../Schema/Driver");
 const Otp = require("../Schema/OTP.JS");
 const sendEmail = require("../utils/sendemail");
@@ -8,6 +7,7 @@ const sendEmail = require("../utils/sendemail");
 // ==========================================
 // GENERATE 6 DIGIT OTP
 // ==========================================
+
 const generateOTP = () => {
     return crypto.randomInt(100000, 1000000).toString();
 };
@@ -15,9 +15,14 @@ const generateOTP = () => {
 // ==========================================
 // SEND FORGOT PASSWORD OTP
 // ==========================================
+
 const sendForgotPasswordOTP = async (req, res) => {
     try {
         const { Email } = req.body;
+
+        // ==========================================
+        // VALIDATION
+        // ==========================================
 
         if (!Email) {
             return res.status(400).json({
@@ -26,9 +31,16 @@ const sendForgotPasswordOTP = async (req, res) => {
             });
         }
 
+        // ==========================================
+        // CLEAN EMAIL
+        // ==========================================
+
         const cleanEmail = Email.toLowerCase().trim();
 
-        // Find driver
+        // ==========================================
+        // FIND DRIVER
+        // ==========================================
+
         const driver = await Driver.findOne({
             Email: cleanEmail,
         });
@@ -40,24 +52,39 @@ const sendForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Delete previous unverified OTP
+        // ==========================================
+        // DELETE PREVIOUS UNVERIFIED OTP
+        // ==========================================
+
         await Otp.deleteMany({
             driverId: driver._id,
             verified: false,
         });
 
-        // Generate OTP
+        // ==========================================
+        // GENERATE OTP
+        // ==========================================
+
         const otp = generateOTP();
 
-        // Hash OTP
+        // ==========================================
+        // HASH OTP
+        // ==========================================
+
         const hashedOTP = await bcrypt.hash(otp, 10);
 
-        // OTP valid for 2 minutes
+        // ==========================================
+        // OTP VALID FOR 2 MINUTES
+        // ==========================================
+
         const otpExpiresAt = new Date(
             Date.now() + 2 * 60 * 1000
         );
 
-        // Save OTP
+        // ==========================================
+        // SAVE OTP
+        // ==========================================
+
         await Otp.create({
             driverId: driver._id,
             Email: cleanEmail,
@@ -69,12 +96,37 @@ const sendForgotPasswordOTP = async (req, res) => {
             lastResendAt: null,
         });
 
-        // Send OTP Email
+        // ==========================================
+        // SEND OTP EMAIL
+        // ==========================================
+
         await sendEmail({
             to: cleanEmail,
-            otp: otp,
-            type: "forgot-password",
+            subject: "Ride & Serve - Forgot Password OTP",
+            text: `Your Ride & Serve OTP is ${otp}. This OTP is valid for 2 minutes. If you did not request this OTP, please ignore this email.`,
+            html: `
+                <div>
+                    <h2>Ride & Serve</h2>
+
+                    <p>Your OTP for password reset is:</p>
+
+                    <h1>${otp}</h1>
+
+                    <p>
+                        This OTP is valid for 2 minutes.
+                    </p>
+
+                    <p>
+                        If you did not request this OTP,
+                        please ignore this email.
+                    </p>
+                </div>
+            `,
         });
+
+        // ==========================================
+        // SUCCESS
+        // ==========================================
 
         return res.status(200).json({
             success: true,
@@ -97,9 +149,17 @@ const sendForgotPasswordOTP = async (req, res) => {
 // ==========================================
 // VERIFY FORGOT PASSWORD OTP
 // ==========================================
+
 const verifyForgotPasswordOTP = async (req, res) => {
     try {
-        const { Email, Otp: enteredOTP } = req.body;
+        const {
+            Email,
+            Otp: enteredOTP,
+        } = req.body;
+
+        // ==========================================
+        // VALIDATION
+        // ==========================================
 
         if (!Email || !enteredOTP) {
             return res.status(400).json({
@@ -108,9 +168,16 @@ const verifyForgotPasswordOTP = async (req, res) => {
             });
         }
 
+        // ==========================================
+        // CLEAN EMAIL
+        // ==========================================
+
         const cleanEmail = Email.toLowerCase().trim();
 
-        // Get latest unverified OTP
+        // ==========================================
+        // GET LATEST UNVERIFIED OTP
+        // ==========================================
+
         const otpRecord = await Otp.findOne({
             Email: cleanEmail,
             verified: false,
@@ -125,7 +192,10 @@ const verifyForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Check expiry
+        // ==========================================
+        // CHECK EXPIRY
+        // ==========================================
+
         if (
             !otpRecord.otpExpiresAt ||
             otpRecord.otpExpiresAt < new Date()
@@ -136,7 +206,10 @@ const verifyForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Maximum attempts
+        // ==========================================
+        // MAXIMUM ATTEMPTS
+        // ==========================================
+
         if (otpRecord.otpAttempts >= 5) {
             return res.status(429).json({
                 success: false,
@@ -145,7 +218,10 @@ const verifyForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Compare OTP
+        // ==========================================
+        // COMPARE OTP
+        // ==========================================
+
         const isValid = await bcrypt.compare(
             enteredOTP.toString(),
             otpRecord.Otp
@@ -162,10 +238,17 @@ const verifyForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Mark verified
+        // ==========================================
+        // MARK OTP VERIFIED
+        // ==========================================
+
         otpRecord.verified = true;
 
         await otpRecord.save();
+
+        // ==========================================
+        // SUCCESS
+        // ==========================================
 
         return res.status(200).json({
             success: true,
@@ -189,9 +272,14 @@ const verifyForgotPasswordOTP = async (req, res) => {
 // ==========================================
 // RESEND FORGOT PASSWORD OTP
 // ==========================================
+
 const resendForgotPasswordOTP = async (req, res) => {
     try {
         const { Email } = req.body;
+
+        // ==========================================
+        // VALIDATION
+        // ==========================================
 
         if (!Email) {
             return res.status(400).json({
@@ -199,8 +287,17 @@ const resendForgotPasswordOTP = async (req, res) => {
                 message: "Email is required",
             });
         }
+
+        // ==========================================
+        // CLEAN EMAIL
+        // ==========================================
+
         const cleanEmail = Email.toLowerCase().trim();
-        // Find driver
+
+        // ==========================================
+        // FIND DRIVER
+        // ==========================================
+
         const driver = await Driver.findOne({
             Email: cleanEmail,
         });
@@ -212,7 +309,10 @@ const resendForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Find latest OTP
+        // ==========================================
+        // FIND LATEST OTP
+        // ==========================================
+
         const previousOTP = await Otp.findOne({
             driverId: driver._id,
             Email: cleanEmail,
@@ -220,7 +320,10 @@ const resendForgotPasswordOTP = async (req, res) => {
             createdAt: -1,
         });
 
-        // 30 seconds resend cooldown
+        // ==========================================
+        // 30 SECONDS RESEND COOLDOWN
+        // ==========================================
+
         if (previousOTP?.lastResendAt) {
             const secondsPassed =
                 (Date.now() -
@@ -237,7 +340,10 @@ const resendForgotPasswordOTP = async (req, res) => {
             }
         }
 
-        // Maximum 3 resends
+        // ==========================================
+        // MAXIMUM 3 RESENDS
+        // ==========================================
+
         if (
             previousOTP &&
             previousOTP.resendCount >= 3
@@ -249,30 +355,48 @@ const resendForgotPasswordOTP = async (req, res) => {
             });
         }
 
-        // Preserve resend count
+        // ==========================================
+        // PRESERVE RESEND COUNT
+        // ==========================================
+
         const newResendCount =
             (previousOTP?.resendCount || 0) + 1;
 
-        // Delete old OTP
+        // ==========================================
+        // DELETE OLD OTP
+        // ==========================================
+
         await Otp.deleteMany({
             driverId: driver._id,
         });
 
-        // Generate new OTP
+        // ==========================================
+        // GENERATE NEW OTP
+        // ==========================================
+
         const otp = generateOTP();
 
-        // Hash OTP
+        // ==========================================
+        // HASH NEW OTP
+        // ==========================================
+
         const hashedOTP = await bcrypt.hash(
             otp,
             10
         );
 
-        // New OTP valid for 2 minutes
+        // ==========================================
+        // NEW OTP VALID FOR 2 MINUTES
+        // ==========================================
+
         const otpExpiresAt = new Date(
             Date.now() + 2 * 60 * 1000
         );
 
-        // Save new OTP
+        // ==========================================
+        // SAVE NEW OTP
+        // ==========================================
+
         await Otp.create({
             driverId: driver._id,
             Email: cleanEmail,
@@ -284,12 +408,37 @@ const resendForgotPasswordOTP = async (req, res) => {
             lastResendAt: new Date(),
         });
 
-        // Send new OTP Email
+        // ==========================================
+        // SEND NEW OTP EMAIL
+        // ==========================================
+
         await sendEmail({
             to: cleanEmail,
-            otp: otp,
-            type: "forgot-password",
+            subject: "Ride & Serve - New Password Reset OTP",
+            text: `Your new Ride & Serve OTP is ${otp}. This OTP is valid for 2 minutes. If you did not request this OTP, please ignore this email.`,
+            html: `
+                <div>
+                    <h2>Ride & Serve</h2>
+
+                    <p>Your new OTP for password reset is:</p>
+
+                    <h1>${otp}</h1>
+
+                    <p>
+                        This OTP is valid for 2 minutes.
+                    </p>
+
+                    <p>
+                        If you did not request this OTP,
+                        please ignore this email.
+                    </p>
+                </div>
+            `,
         });
+
+        // ==========================================
+        // SUCCESS
+        // ==========================================
 
         return res.status(200).json({
             success: true,
@@ -310,7 +459,10 @@ const resendForgotPasswordOTP = async (req, res) => {
     }
 };
 
+// ==========================================
 // EXPORTS
+// ==========================================
+
 module.exports = {
     sendForgotPasswordOTP,
     verifyForgotPasswordOTP,

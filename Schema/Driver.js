@@ -10,7 +10,7 @@ const driverSchema = new mongoose.Schema(
     driverReferenceId: {
       type: String,
       unique: true,
-      required: true,
+      // required: true,
       index: true,
     },
     PhoneNumber: {
@@ -23,7 +23,7 @@ const driverSchema = new mongoose.Schema(
       type: String,
       required: [true, "Country code is required"],
       trim: true,
-      default: "+92",
+      // default: "+92",
     },
     CountryIso: {
       type: String,
@@ -37,7 +37,7 @@ const driverSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       sparse: true,
-      unique:true, // Allows null/unique without index conflicts
+      unique: true, // Allows null/unique without index conflicts
     },
     CnicNumber: {
       type: String,
@@ -84,11 +84,11 @@ const driverSchema = new mongoose.Schema(
       default: false,
     },
     verificationStatus: {
-  type: String,
-  enum: ["Pending", "Verified", "Rejected"],
-  default: "Pending"
-},
-    
+      type: String,
+      enum: ["Pending", "Verified", "Rejected"],
+      default: "Pending"
+    },
+
   },
   {
     timestamps: true, // Automatically manages createdAt and updatedAt fields
