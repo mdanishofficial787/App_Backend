@@ -9,9 +9,13 @@ const { parseGlobalPhoneNumber } = require("../utils/CountryCode");
 // ==========================================
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "7d",
+    }
+  );
 };
 
 // ==========================================
@@ -60,13 +64,15 @@ const uploadToCloudinary = (buffer, folder) => {
 
 const registerDriver = async (req, res) => {
   try {
-    let {
+    // ==========================================
+    // GET DATA FROM REQUEST
+    // ==========================================
+
+    const {
       Name,
-      CountryCode,
       PhoneNumber,
       Email,
       Password,
-      ConfirmPassword,
       CnicNumber,
       License,
       LicenseExpiryDate,
@@ -74,24 +80,58 @@ const registerDriver = async (req, res) => {
       backgroundCheckConsent,
     } = req.body;
 
+    // Confirm Password frontend se aa sakta hai
+    // Lekin MongoDB mein save nahi hoga
+    const ConfirmPassword =
+      req.body.ConfirmPassword ||
+      req.body.confirmPassword;
+
+    // ==========================================
+    // DEBUG
+    // ==========================================
+
+    console.log("========== DRIVER REGISTER ==========");
+    console.log("BODY:", req.body);
+    console.log(
+      "FILES:",
+      Object.keys(req.files || {})
+    );
+
     // ==========================================
     // REQUIRED FIELDS
     // ==========================================
+    // IMPORTANT:
+    // CountryCode required nahi hai.
+    // Backend phone number se khud extract karega.
 
-    if (
-      !Name ||
-      !CountryCode ||
-      !PhoneNumber ||
-      !Email ||
-      !Password ||
-      !ConfirmPassword ||
-      !CnicNumber ||
-      !License ||
-      !LicenseExpiryDate
-    ) {
+    const requiredFields = {
+      Name,
+      PhoneNumber,
+      Email,
+      Password,
+      ConfirmPassword,
+      CnicNumber,
+      License,
+      LicenseExpiryDate,
+    };
+
+    const missingFields = Object.keys(
+      requiredFields
+    ).filter((field) => {
+      const value = requiredFields[field];
+
+      return (
+        value === undefined ||
+        value === null ||
+        String(value).trim() === ""
+      );
+    });
+
+    if (missingFields.length > 0) {
       return res.status(400).json({
         success: false,
         message: "Please fill all required fields.",
+        missingFields,
       });
     }
 
@@ -102,7 +142,8 @@ const registerDriver = async (req, res) => {
     if (Password !== ConfirmPassword) {
       return res.status(400).json({
         success: false,
-        message: "Password and Confirm Password do not match.",
+        message:
+          "Password and Confirm Password do not match.",
       });
     }
 
@@ -130,133 +171,222 @@ const registerDriver = async (req, res) => {
     }
 
     // ==========================================
-    // PARSE & VALIDATE PHONE NUMBER
+    // PHONE NUMBER PARSING
+    // ==========================================
+    //
+    // Frontend example:
+    //
+    // PhoneNumber = +923117586447
+    //
+    // Backend automatically converts:
+    //
+    // CountryCode = +92
+    // PhoneNumber = 3117586447
+    // CountryIso = PK
+    //
+    // CountryCode frontend se nahi chahiye.
     // ==========================================
 
-    const rawInput =
-      CountryCode && !PhoneNumber.startsWith("+")
-        ? `${CountryCode}${PhoneNumber}`
-        : PhoneNumber;
+    const rawPhoneNumber =
+      String(PhoneNumber).trim();
 
     const parsedPhone = parseGlobalPhoneNumber(
-      rawInput,
+      rawPhoneNumber,
       CountryIso || "PK"
     );
 
     if (!parsedPhone || !parsedPhone.isValid) {
       return res.status(400).json({
         success: false,
-        message: "Invalid phone number or country code.",
+        message:
+          "Invalid phone number. Please enter a valid international phone number.",
       });
     }
 
-    const finalCountryCode = parsedPhone.countryCode;
-    const finalPhoneNumber = parsedPhone.formattedLocal;
-    const finalCountryIso = parsedPhone.countryIso;
+    const finalCountryCode =
+      parsedPhone.countryCode;
 
-    const cleanEmail = Email.toLowerCase().trim();
+    const finalPhoneNumber =
+      parsedPhone.formattedLocal;
+
+    const finalCountryIso =
+      parsedPhone.countryIso;
+
+    // ==========================================
+    // CLEAN DATA
+    // ==========================================
+
+    const cleanName = Name.trim();
+
+    const cleanEmail =
+      Email.toLowerCase().trim();
+
+    const cleanCnic =
+      CnicNumber.trim();
+
+    const cleanLicense =
+      License.trim();
 
     // ==========================================
     // CHECK EXISTING DRIVER
     // ==========================================
 
-    const existingDriver = await Driver.findOne({
-      $or: [
-        {
-          PhoneNumber: finalPhoneNumber,
-          CountryCode: finalCountryCode,
-        },
-        {
-          Email: cleanEmail,
-        },
-        {
-          CnicNumber: CnicNumber.trim(),
-        },
-        {
-          License: License.trim(),
-        },
-      ],
-    });
+    const existingDriver =
+      await Driver.findOne({
+        $or: [
+          {
+            PhoneNumber: finalPhoneNumber,
+            CountryCode: finalCountryCode,
+          },
+          {
+            Email: cleanEmail,
+          },
+          {
+            CnicNumber: cleanCnic,
+          },
+          {
+            License: cleanLicense,
+          },
+        ],
+      });
 
     if (existingDriver) {
-      return res.status(400).json({
+      let duplicateMessage =
+        "Driver already exists.";
+
+      if (
+        existingDriver.PhoneNumber ===
+        finalPhoneNumber &&
+        existingDriver.CountryCode ===
+        finalCountryCode
+      ) {
+        duplicateMessage =
+          "Driver already exists with this phone number.";
+      } else if (
+        existingDriver.Email === cleanEmail
+      ) {
+        duplicateMessage =
+          "Driver already exists with this email.";
+      } else if (
+        existingDriver.CnicNumber === cleanCnic
+      ) {
+        duplicateMessage =
+          "Driver already exists with this CNIC.";
+      } else if (
+        existingDriver.License === cleanLicense
+      ) {
+        duplicateMessage =
+          "Driver already exists with this license number.";
+      }
+
+      return res.status(409).json({
         success: false,
-        message:
-          "Driver already exists with this phone number, email, CNIC or license.",
+        message: duplicateMessage,
       });
     }
 
     // ==========================================
-    // UPLOAD IMAGES TO CLOUDINARY
+    // UPLOAD DRIVER PHOTO
     // ==========================================
 
-    const driverPhoto = await uploadToCloudinary(
-      files.driverPhoto[0].buffer,
-      "drivers/driverphoto"
-    );
+    const driverPhoto =
+      await uploadToCloudinary(
+        files.driverPhoto[0].buffer,
+        "drivers/driverphoto"
+      );
 
-    const CnicFront = await uploadToCloudinary(
-      files.CnicFront[0].buffer,
-      "drivers/cnic"
-    );
+    // ==========================================
+    // UPLOAD CNIC FRONT
+    // ==========================================
 
-    const CnicBack = await uploadToCloudinary(
-      files.CnicBack[0].buffer,
-      "drivers/cnic"
-    );
+    const CnicFront =
+      await uploadToCloudinary(
+        files.CnicFront[0].buffer,
+        "drivers/cnic"
+      );
 
-    const LicenseFront = await uploadToCloudinary(
-      files.LicenseFront[0].buffer,
-      "drivers/license"
-    );
+    // ==========================================
+    // UPLOAD CNIC BACK
+    // ==========================================
 
-    const LicenseBack = await uploadToCloudinary(
-      files.LicenseBack[0].buffer,
-      "drivers/license"
-    );
+    const CnicBack =
+      await uploadToCloudinary(
+        files.CnicBack[0].buffer,
+        "drivers/cnic"
+      );
+
+    // ==========================================
+    // UPLOAD LICENSE FRONT
+    // ==========================================
+
+    const LicenseFront =
+      await uploadToCloudinary(
+        files.LicenseFront[0].buffer,
+        "drivers/license"
+      );
+
+    // ==========================================
+    // UPLOAD LICENSE BACK
+    // ==========================================
+
+    const LicenseBack =
+      await uploadToCloudinary(
+        files.LicenseBack[0].buffer,
+        "drivers/license"
+      );
 
     // ==========================================
     // HASH PASSWORD
     // ==========================================
 
-    const hashedPassword = await bcrypt.hash(Password, 10);
+    const hashedPassword =
+      await bcrypt.hash(Password, 10);
 
     // ==========================================
     // GENERATE DRIVER REFERENCE ID
     // ==========================================
 
-    const driverReferenceId = generateDriverReferenceId();
+    const driverReferenceId =
+      generateDriverReferenceId();
 
     // ==========================================
     // CREATE DRIVER
     // ==========================================
 
     const newDriver = new Driver({
-      Name: Name.trim(),
+      Name: cleanName,
 
       driverReferenceId,
 
+      // Backend automatically stores
+      // country code separately
       CountryCode: finalCountryCode,
 
+      // Backend automatically stores
+      // local phone number
       PhoneNumber: finalPhoneNumber,
 
       CountryIso: finalCountryIso,
 
       Email: cleanEmail,
 
-      CnicNumber: CnicNumber.trim(),
+      CnicNumber: cleanCnic,
 
-      License: License.trim(),
+      License: cleanLicense,
 
       LicenseExpiryDate,
 
+      // ONLY HASHED PASSWORD IS STORED
       Password: hashedPassword,
+
+      // ConfirmPassword is NOT included
+      // therefore it will NOT be stored in MongoDB
 
       backgroundCheckConsent:
         backgroundCheckConsent === true ||
         backgroundCheckConsent === "true",
 
-      // Admin verification is required
+      // Admin verification required
       verificationStatus: "Pending",
 
       driverPhoto,
@@ -273,21 +403,20 @@ const registerDriver = async (req, res) => {
     await newDriver.save();
 
     // ==========================================
-    // GENERATE TOKEN
+    // GENERATE JWT
     // ==========================================
 
-    const token = generateToken(newDriver._id);
+    const token =
+      generateToken(newDriver._id);
 
     // ==========================================
     // REMOVE PASSWORD FROM RESPONSE
     // ==========================================
 
-    const driverResponse = newDriver.toObject();
+    const driverResponse =
+      newDriver.toObject();
 
     delete driverResponse.Password;
-
-    // ConfirmPassword was never added to MongoDB
-    // so there is nothing to delete here.
 
     // ==========================================
     // SUCCESS RESPONSE
@@ -295,6 +424,7 @@ const registerDriver = async (req, res) => {
 
     return res.status(201).json({
       success: true,
+
       message:
         "Driver registered successfully. Your account is pending admin verification.",
 
@@ -303,16 +433,20 @@ const registerDriver = async (req, res) => {
       driver: driverResponse,
     });
   } catch (error) {
-    console.error("Register Driver Error:", error);
+    console.error(
+      "Register Driver Error:",
+      error
+    );
 
     // ==========================================
-    // DUPLICATE KEY ERROR
+    // DUPLICATE KEY
     // ==========================================
 
     if (error.code === 11000) {
-      const duplicateField = Object.keys(
-        error.keyPattern || {}
-      )[0];
+      const duplicateField =
+        Object.keys(
+          error.keyPattern || {}
+        )[0];
 
       return res.status(409).json({
         success: false,
@@ -321,17 +455,23 @@ const registerDriver = async (req, res) => {
     }
 
     // ==========================================
-    // MONGOOSE VALIDATION ERROR
+    // MONGOOSE VALIDATION
     // ==========================================
 
-    if (error.name === "ValidationError") {
-      const validationErrors = Object.values(
-        error.errors
-      ).map((err) => err.message);
+    if (
+      error.name === "ValidationError"
+    ) {
+      const validationErrors =
+        Object.values(
+          error.errors
+        ).map(
+          (err) => err.message
+        );
 
       return res.status(400).json({
         success: false,
-        message: "Driver data validation failed.",
+        message:
+          "Driver data validation failed.",
         errors: validationErrors,
       });
     }
@@ -340,10 +480,14 @@ const registerDriver = async (req, res) => {
     // CLOUDINARY ERROR
     // ==========================================
 
-    if (error.http_code || error.name === "UploadError") {
+    if (
+      error.http_code ||
+      error.name === "UploadError"
+    ) {
       return res.status(500).json({
         success: false,
-        message: "Document upload failed. Please try again.",
+        message:
+          "Document upload failed. Please try again.",
       });
     }
 
@@ -365,7 +509,9 @@ const registerDriver = async (req, res) => {
 
 const getDrivers = async (req, res) => {
   try {
-    const drivers = await Driver.find().select("-Password");
+    const drivers =
+      await Driver.find()
+        .select("-Password");
 
     return res.status(200).json({
       success: true,
@@ -373,7 +519,10 @@ const getDrivers = async (req, res) => {
       drivers,
     });
   } catch (error) {
-    console.error("Get Drivers Error:", error);
+    console.error(
+      "Get Drivers Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -389,9 +538,10 @@ const getDrivers = async (req, res) => {
 
 const getDriverById = async (req, res) => {
   try {
-    const driver = await Driver.findById(req.params.id).select(
-      "-Password"
-    );
+    const driver =
+      await Driver.findById(
+        req.params.id
+      ).select("-Password");
 
     if (!driver) {
       return res.status(404).json({
@@ -405,7 +555,10 @@ const getDriverById = async (req, res) => {
       driver,
     });
   } catch (error) {
-    console.error("Get Driver By ID Error:", error);
+    console.error(
+      "Get Driver By ID Error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -421,7 +574,9 @@ const getDriverById = async (req, res) => {
 
 const updateDriver = async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const updates = {
+      ...req.body,
+    };
 
     // ==========================================
     // PROTECTED FIELDS
@@ -429,122 +584,170 @@ const updateDriver = async (req, res) => {
 
     delete updates.Password;
     delete updates.ConfirmPassword;
+    delete updates.confirmPassword;
     delete updates.driverReferenceId;
     delete updates.verificationStatus;
 
     // ==========================================
-    // UPDATE PHONE NUMBER
+    // PHONE NUMBER
+    // ==========================================
+    //
+    // Frontend sends:
+    // PhoneNumber = +923117586447
+    //
+    // Backend stores:
+    // CountryCode = +92
+    // PhoneNumber = 3117586447
+    // CountryIso = PK
     // ==========================================
 
     if (updates.PhoneNumber) {
-      const rawInput =
-        updates.CountryCode &&
-          !updates.PhoneNumber.startsWith("+")
-          ? `${updates.CountryCode}${updates.PhoneNumber}`
-          : updates.PhoneNumber;
+      const rawPhoneNumber =
+        String(
+          updates.PhoneNumber
+        ).trim();
 
-      const parsedPhone = parseGlobalPhoneNumber(
-        rawInput,
-        updates.CountryIso || "PK"
-      );
+      const parsedPhone =
+        parseGlobalPhoneNumber(
+          rawPhoneNumber,
+          updates.CountryIso || "PK"
+        );
 
-      if (!parsedPhone || !parsedPhone.isValid) {
+      if (
+        !parsedPhone ||
+        !parsedPhone.isValid
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Invalid phone number or country code.",
+          message:
+            "Invalid phone number.",
         });
       }
 
-      updates.CountryCode = parsedPhone.countryCode;
-      updates.PhoneNumber = parsedPhone.formattedLocal;
-      updates.CountryIso = parsedPhone.countryIso;
+      updates.CountryCode =
+        parsedPhone.countryCode;
+
+      updates.PhoneNumber =
+        parsedPhone.formattedLocal;
+
+      updates.CountryIso =
+        parsedPhone.countryIso;
     }
 
     // ==========================================
-    // NORMALIZE EMAIL
+    // DO NOT ALLOW FRONTEND TO MANUALLY
+    // CHANGE COUNTRY CODE
+    // ==========================================
+
+    if (!req.body.PhoneNumber) {
+      delete updates.CountryCode;
+      delete updates.CountryIso;
+    }
+
+    // ==========================================
+    // EMAIL
     // ==========================================
 
     if (updates.Email) {
-      updates.Email = updates.Email.toLowerCase().trim();
+      updates.Email =
+        updates.Email
+          .toLowerCase()
+          .trim();
     }
 
     // ==========================================
-    // NORMALIZE NAME
+    // NAME
     // ==========================================
 
     if (updates.Name) {
-      updates.Name = updates.Name.trim();
+      updates.Name =
+        updates.Name.trim();
     }
 
     // ==========================================
-    // UPDATE CNIC
+    // CNIC
     // ==========================================
 
     if (updates.CnicNumber) {
-      updates.CnicNumber = updates.CnicNumber.trim();
+      updates.CnicNumber =
+        updates.CnicNumber.trim();
     }
 
     // ==========================================
-    // UPDATE LICENSE
+    // LICENSE
     // ==========================================
 
     if (updates.License) {
-      updates.License = updates.License.trim();
+      updates.License =
+        updates.License.trim();
     }
 
     // ==========================================
-    // UPDATE IMAGES
+    // FILES
     // ==========================================
 
     const files = req.files || {};
 
+    // Driver Photo
     if (files.driverPhoto?.[0]) {
-      updates.driverPhoto = await uploadToCloudinary(
-        files.driverPhoto[0].buffer,
-        "drivers/driverphoto"
-      );
+      updates.driverPhoto =
+        await uploadToCloudinary(
+          files.driverPhoto[0].buffer,
+          "drivers/driverphoto"
+        );
     }
 
+    // CNIC Front
     if (files.CnicFront?.[0]) {
-      updates.CnicFront = await uploadToCloudinary(
-        files.CnicFront[0].buffer,
-        "drivers/cnic"
-      );
+      updates.CnicFront =
+        await uploadToCloudinary(
+          files.CnicFront[0].buffer,
+          "drivers/cnic"
+        );
     }
 
+    // CNIC Back
     if (files.CnicBack?.[0]) {
-      updates.CnicBack = await uploadToCloudinary(
-        files.CnicBack[0].buffer,
-        "drivers/cnic"
-      );
+      updates.CnicBack =
+        await uploadToCloudinary(
+          files.CnicBack[0].buffer,
+          "drivers/cnic"
+        );
     }
 
+    // License Front
     if (files.LicenseFront?.[0]) {
-      updates.LicenseFront = await uploadToCloudinary(
-        files.LicenseFront[0].buffer,
-        "drivers/license"
-      );
+      updates.LicenseFront =
+        await uploadToCloudinary(
+          files.LicenseFront[0].buffer,
+          "drivers/license"
+        );
     }
 
+    // License Back
     if (files.LicenseBack?.[0]) {
-      updates.LicenseBack = await uploadToCloudinary(
-        files.LicenseBack[0].buffer,
-        "drivers/license"
-      );
+      updates.LicenseBack =
+        await uploadToCloudinary(
+          files.LicenseBack[0].buffer,
+          "drivers/license"
+        );
     }
 
     // ==========================================
     // UPDATE DRIVER
     // ==========================================
 
-    const updatedDriver = await Driver.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      {
-        new: true,
-        runValidators: true,
-      }
-    ).select("-Password");
+    const updatedDriver =
+      await Driver.findByIdAndUpdate(
+        req.params.id,
+        {
+          $set: updates,
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      ).select("-Password");
 
     if (!updatedDriver) {
       return res.status(404).json({
@@ -555,20 +758,25 @@ const updateDriver = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Driver updated successfully.",
+      message:
+        "Driver updated successfully.",
       driver: updatedDriver,
     });
   } catch (error) {
-    console.error("Update Driver Error:", error);
+    console.error(
+      "Update Driver Error:",
+      error
+    );
 
     // ==========================================
     // DUPLICATE KEY
     // ==========================================
 
     if (error.code === 11000) {
-      const duplicateField = Object.keys(
-        error.keyPattern || {}
-      )[0];
+      const duplicateField =
+        Object.keys(
+          error.keyPattern || {}
+        )[0];
 
       return res.status(409).json({
         success: false,
@@ -580,14 +788,20 @@ const updateDriver = async (req, res) => {
     // VALIDATION ERROR
     // ==========================================
 
-    if (error.name === "ValidationError") {
-      const validationErrors = Object.values(
-        error.errors
-      ).map((err) => err.message);
+    if (
+      error.name === "ValidationError"
+    ) {
+      const validationErrors =
+        Object.values(
+          error.errors
+        ).map(
+          (err) => err.message
+        );
 
       return res.status(400).json({
         success: false,
-        message: "Driver data validation failed.",
+        message:
+          "Driver data validation failed.",
         errors: validationErrors,
       });
     }
@@ -599,6 +813,10 @@ const updateDriver = async (req, res) => {
     });
   }
 };
+
+// ==========================================
+// EXPORT
+// ==========================================
 
 module.exports = {
   registerDriver,
