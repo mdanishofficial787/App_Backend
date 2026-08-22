@@ -25,6 +25,12 @@ async function main() {
 app.use("/driver", DriverRoute);
 app.use("/vehicle", VehicleRoute);
 app.use("/password", PasswordRoute);
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Ride & Serve API is running",
+  });
+});
 app.listen(8001, () => {
   console.log("Server is running on port 8001");
 });
