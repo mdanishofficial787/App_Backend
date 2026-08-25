@@ -1,11 +1,14 @@
 const express = require("express");
+
 const router = express.Router();
 
 const Authr = require("../Middleware/Authr");
+
 const {
   vehicleCreateUpload,
   vehicleUpdateUpload,
 } = require("../Middleware/vehicle_upload");
+
 const validateVehicle = require("../Middleware/vehicle_Validation");
 
 const {
@@ -15,25 +18,24 @@ const {
   deleteVehicle,
 } = require("../Controller/Vehicle_controller");
 
-
 const {
   updateVehicle,
-} = require("../Controller/update_vehicle");
+} = require("../Controller/update_vehicle");// CREATE VEHICLE
 
-// ==========================================
-// 1. CREATE VEHICLE (Token Protected)
-// ==========================================
 router.post(
   "/register",
+
+  (req, res, next) => {
+    next();
+  },
+
   Authr,
   vehicleCreateUpload,
   validateVehicle,
   createVehicle
 );
 
-// ==========================================
-// 2. UPDATE VEHICLE (Token Protected)
-// ==========================================
+// UPDATE VEHICLE
 router.patch(
   "/:id",
   Authr,
@@ -42,32 +44,25 @@ router.patch(
   updateVehicle
 );
 
-// ==========================================
-// 3. GET ALL VEHICLES (Token Protected)
-// ==========================================
+// GET ALL VEHICLES
 router.get(
   "/",
   Authr,
   getVehicles
 );
 
-// ==========================================
-// 4. GET VEHICLE BY ID (Token Protected)
-// ==========================================
+// GET VEHICLE BY ID
 router.get(
   "/:id",
   Authr,
   getVehicleById
 );
 
-// ==========================================
-// 5. DELETE VEHICLE (Token Protected)
-// ==========================================
+// DELETE VEHICLE
 router.delete(
   "/:id",
   Authr,
   deleteVehicle
 );
-// login
 
 module.exports = router;

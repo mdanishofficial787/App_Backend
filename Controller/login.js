@@ -13,6 +13,7 @@ const loginDriver = async (req, res) => {
         // ==========================================
         // 1. VALIDATION
         // ==========================================
+
         if (
             !CountryCode ||
             !PhoneNumber ||
@@ -28,6 +29,7 @@ const loginDriver = async (req, res) => {
         // ==========================================
         // 2. CLEAN DATA
         // ==========================================
+
         const cleanCountryCode =
             CountryCode.trim();
 
@@ -35,7 +37,8 @@ const loginDriver = async (req, res) => {
             PhoneNumber.toString().trim();
 
         // Agar frontend +92 ke sath number bheje
-        // +923001234567
+        // Example: +923117582347
+
         if (
             cleanPhoneNumber.startsWith(
                 cleanCountryCode
@@ -47,9 +50,19 @@ const loginDriver = async (req, res) => {
                     .trim();
         }
 
+        // Agar number 0 se start ho
+        // Example: 03117582347
+        // DB mein 3117582347 hai
+
+        if (cleanPhoneNumber.startsWith("0")) {
+            cleanPhoneNumber =
+                cleanPhoneNumber.substring(1);
+        }
+
         // ==========================================
         // 3. FIND DRIVER
         // ==========================================
+
         const driver = await Driver.findOne({
             CountryCode: cleanCountryCode,
             PhoneNumber: cleanPhoneNumber,
@@ -66,6 +79,7 @@ const loginDriver = async (req, res) => {
         // ==========================================
         // 4. CHECK PASSWORD
         // ==========================================
+
         const isPasswordValid =
             await bcrypt.compare(
                 Password,
@@ -81,8 +95,27 @@ const loginDriver = async (req, res) => {
         }
 
         // ==========================================
-        // 5. GENERATE JWT
+        // 5. CHECK ADMIN VERIFICATION
         // ==========================================
+
+        if (
+            driver.verificationStatus !==
+            "Approved"
+        ) {
+            return res.status(403).json({
+                success: false,
+                isApproved: false,
+                verificationStatus:
+                    driver.verificationStatus,
+                message:
+                    "Your account is pending admin verification. You cannot login until your account is approved.",
+            });
+        }
+
+        // ==========================================
+        // 6. GENERATE JWT
+        // ==========================================
+
         const token = jwt.sign(
             {
                 id: driver._id.toString(),
@@ -94,8 +127,9 @@ const loginDriver = async (req, res) => {
         );
 
         // ==========================================
-        // 6. DRIVER RESPONSE
+        // 7. DRIVER RESPONSE
         // ==========================================
+
         const driverResponse =
             driver.toObject();
 
@@ -103,11 +137,15 @@ const loginDriver = async (req, res) => {
         delete driverResponse.Password;
 
         // ==========================================
-        // 7. SUCCESS
+        // 8. SUCCESS
         // ==========================================
+
         return res.status(200).json({
             success: true,
             message: "Login successful",
+            isApproved: true,
+            verificationStatus:
+                driver.verificationStatus,
             token,
             driver: driverResponse,
         });
@@ -121,7 +159,6 @@ const loginDriver = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Server error",
-            error: error.message,
         });
     }
 };

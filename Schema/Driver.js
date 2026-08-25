@@ -21,13 +21,13 @@ const driverSchema = new mongoose.Schema(
     },
     CountryCode: {
       type: String,
-      required: [true, "Country code is required"],
+      required: [true],
       trim: true,
       // default: "+92",
     },
     CountryIso: {
       type: String,
-      required: [true, "Country ISO code is required"],
+      required: [true],
       trim: true,
       uppercase: true,
       default: "PK",
@@ -95,4 +95,4 @@ const driverSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Driver", driverSchema);
+module.exports = mongoose.model("Driver", driverSchema); 

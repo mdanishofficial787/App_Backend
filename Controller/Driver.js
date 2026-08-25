@@ -2,20 +2,27 @@ const Driver = require("../Schema/Driver");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cloudinary = require("../config/cloudinary");
-const { parseGlobalPhoneNumber } = require("../utils/CountryCode");
+
+const {
+  parseGlobalPhoneNumber,
+} = require("../utils/CountryCode");
 
 // ==========================================
 // GENERATE JWT TOKEN
 // ==========================================
 
 const generateToken = (id) => {
-  return jwt.sign(
-    { id },
+  const token = jwt.sign(
+    {
+      id: id.toString(),
+    },
     process.env.JWT_SECRET,
     {
       expiresIn: "7d",
     }
   );
+
+  return token;
 };
 
 // ==========================================
@@ -64,10 +71,6 @@ const uploadToCloudinary = (buffer, folder) => {
 
 const registerDriver = async (req, res) => {
   try {
-    // ==========================================
-    // GET DATA FROM REQUEST
-    // ==========================================
-
     const {
       Name,
       PhoneNumber,
@@ -80,29 +83,13 @@ const registerDriver = async (req, res) => {
       backgroundCheckConsent,
     } = req.body;
 
-    // Confirm Password frontend se aa sakta hai
-    // Lekin MongoDB mein save nahi hoga
     const ConfirmPassword =
       req.body.ConfirmPassword ||
       req.body.confirmPassword;
 
     // ==========================================
-    // DEBUG
-    // ==========================================
-
-    console.log("========== DRIVER REGISTER ==========");
-    console.log("BODY:", req.body);
-    console.log(
-      "FILES:",
-      Object.keys(req.files || {})
-    );
-
-    // ==========================================
     // REQUIRED FIELDS
     // ==========================================
-    // IMPORTANT:
-    // CountryCode required nahi hai.
-    // Backend phone number se khud extract karega.
 
     const requiredFields = {
       Name,
@@ -171,29 +158,17 @@ const registerDriver = async (req, res) => {
     }
 
     // ==========================================
-    // PHONE NUMBER PARSING
-    // ==========================================
-    //
-    // Frontend example:
-    //
-    // PhoneNumber = +923117586447
-    //
-    // Backend automatically converts:
-    //
-    // CountryCode = +92
-    // PhoneNumber = 3117586447
-    // CountryIso = PK
-    //
-    // CountryCode frontend se nahi chahiye.
+    // PHONE NUMBER VALIDATION
     // ==========================================
 
     const rawPhoneNumber =
       String(PhoneNumber).trim();
 
-    const parsedPhone = parseGlobalPhoneNumber(
-      rawPhoneNumber,
-      CountryIso || "PK"
-    );
+    const parsedPhone =
+      parseGlobalPhoneNumber(
+        rawPhoneNumber,
+        CountryIso || "PK"
+      );
 
     if (!parsedPhone || !parsedPhone.isValid) {
       return res.status(400).json({
@@ -358,12 +333,8 @@ const registerDriver = async (req, res) => {
 
       driverReferenceId,
 
-      // Backend automatically stores
-      // country code separately
       CountryCode: finalCountryCode,
 
-      // Backend automatically stores
-      // local phone number
       PhoneNumber: finalPhoneNumber,
 
       CountryIso: finalCountryIso,
@@ -376,17 +347,13 @@ const registerDriver = async (req, res) => {
 
       LicenseExpiryDate,
 
-      // ONLY HASHED PASSWORD IS STORED
       Password: hashedPassword,
-
-      // ConfirmPassword is NOT included
-      // therefore it will NOT be stored in MongoDB
 
       backgroundCheckConsent:
         backgroundCheckConsent === true ||
         backgroundCheckConsent === "true",
 
-      // Admin verification required
+      // DRIVER STARTS AS PENDING
       verificationStatus: "Pending",
 
       driverPhoto,
@@ -432,6 +399,7 @@ const registerDriver = async (req, res) => {
 
       driver: driverResponse,
     });
+
   } catch (error) {
     console.error(
       "Register Driver Error:",
@@ -511,13 +479,17 @@ const getDrivers = async (req, res) => {
   try {
     const drivers =
       await Driver.find()
-        .select("-Password");
+        .select("-Password")
+        .sort({
+          createdAt: -1,
+        });
 
     return res.status(200).json({
       success: true,
       count: drivers.length,
       drivers,
     });
+
   } catch (error) {
     console.error(
       "Get Drivers Error:",
@@ -554,6 +526,7 @@ const getDriverById = async (req, res) => {
       success: true,
       driver,
     });
+
   } catch (error) {
     console.error(
       "Get Driver By ID Error:",
@@ -586,19 +559,12 @@ const updateDriver = async (req, res) => {
     delete updates.ConfirmPassword;
     delete updates.confirmPassword;
     delete updates.driverReferenceId;
+
+    // DRIVER CANNOT CHANGE VERIFICATION STATUS
     delete updates.verificationStatus;
 
     // ==========================================
     // PHONE NUMBER
-    // ==========================================
-    //
-    // Frontend sends:
-    // PhoneNumber = +923117586447
-    //
-    // Backend stores:
-    // CountryCode = +92
-    // PhoneNumber = 3117586447
-    // CountryIso = PK
     // ==========================================
 
     if (updates.PhoneNumber) {
@@ -635,8 +601,7 @@ const updateDriver = async (req, res) => {
     }
 
     // ==========================================
-    // DO NOT ALLOW FRONTEND TO MANUALLY
-    // CHANGE COUNTRY CODE
+    // COUNTRY CODE
     // ==========================================
 
     if (!req.body.PhoneNumber) {
@@ -762,6 +727,7 @@ const updateDriver = async (req, res) => {
         "Driver updated successfully.",
       driver: updatedDriver,
     });
+
   } catch (error) {
     console.error(
       "Update Driver Error:",

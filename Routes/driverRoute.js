@@ -1,21 +1,24 @@
 const express = require("express");
 const router = express.Router();
+
 const Authr = require("../Middleware/Authr");
 const driverUpload = require("../Middleware/driverupload");
 const validateDriver = require("../Middleware/drivervalidation");
 
-// 1. Controllers Import
+// CONTROLLERS
 const {
   registerDriver,
   getDrivers,
   getDriverById,
   updateDriver,
-} = require("../Controller/Drive");
+} = require("../Controller/Driver");
 
-// Separate Login Controller Import
-const { loginDriver } = require("../Controller/login");
+// Separate Login Controller
+const {
+  loginDriver
+} = require("../Controller/login");
 
-// 2. REGISTER DRIVER (Public - Returns Token in response)
+// 1. REGISTER DRIVER
 router.post(
   "/register",
   driverUpload,
@@ -23,27 +26,26 @@ router.post(
   registerDriver
 );
 
-// 3. LOGIN DRIVER (Public - Returns JWT Token)
+// 2. LOGIN DRIVER
 router.post(
   "/login",
   loginDriver
 );
 
-// 4. GET ALL DRIVERS (Protected)
+// 3. GET ALL DRIVERS
 router.get(
   "/",
   Authr,
   getDrivers
 );
 
-// 5. GET DRIVER BY ID (Protected)
+// 4. GET DRIVER BY ID
 router.get(
   "/:id",
   Authr,
   getDriverById
 );
-
-// 6. UPDATE DRIVER (Protected)
+// 5. UPDATE DRIVER
 router.patch(
   "/:id",
   Authr,

@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const DriverRoute = require("./Routes/driverRoute");
 const VehicleRoute = require("./Routes/vehicle_Route");
 const PasswordRoute = require("./Routes/password_Route");
+const AdminRoute = require("./Routes/Admin_Route");
 const app = express();
 
 app.use(express.json());
@@ -25,6 +26,7 @@ async function main() {
 app.use("/driver", DriverRoute);
 app.use("/vehicle", VehicleRoute);
 app.use("/password", PasswordRoute);
+app.use("/admin", AdminRoute);
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
