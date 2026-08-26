@@ -1,470 +1,275 @@
-const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
 const Driver = require("../Schema/Driver");
-const Otp = require("../Schema/OTP.JS");
-const sendEmail = require("../utils/sendemail");
+const PasswordResetRequest = require("../Schema/Password");
 
-// ==========================================
-// GENERATE 6 DIGIT OTP
-// ==========================================
+// ======================================================
+// 1. DRIVER SEND PASSWORD RESET REQUEST
+// ======================================================
 
-const generateOTP = () => {
-    return crypto.randomInt(100000, 1000000).toString();
-};
-
-// ==========================================
-// SEND FORGOT PASSWORD OTP
-// ==========================================
-
-const sendForgotPasswordOTP = async (req, res) => {
-    try {
-        const { Email } = req.body;
-
-        // ==========================================
-        // VALIDATION
-        // ==========================================
-
-        if (!Email) {
-            return res.status(400).json({
-                success: false,
-                message: "Email is required",
-            });
-        }
-
-        // ==========================================
-        // CLEAN EMAIL
-        // ==========================================
-
-        const cleanEmail = Email.toLowerCase().trim();
-
-        // ==========================================
-        // FIND DRIVER
-        // ==========================================
-
-        const driver = await Driver.findOne({
-            Email: cleanEmail,
-        });
-
-        if (!driver) {
-            return res.status(404).json({
-                success: false,
-                message: "No driver account found with this email",
-            });
-        }
-
-        // ==========================================
-        // DELETE PREVIOUS UNVERIFIED OTP
-        // ==========================================
-
-        await Otp.deleteMany({
-            driverId: driver._id,
-            verified: false,
-        });
-
-        // ==========================================
-        // GENERATE OTP
-        // ==========================================
-
-        const otp = generateOTP();
-
-        // ==========================================
-        // HASH OTP
-        // ==========================================
-
-        const hashedOTP = await bcrypt.hash(otp, 10);
-
-        // ==========================================
-        // OTP VALID FOR 2 MINUTES
-        // ==========================================
-
-        const otpExpiresAt = new Date(
-            Date.now() + 2 * 60 * 1000
-        );
-
-        // ==========================================
-        // SAVE OTP
-        // ==========================================
-
-        await Otp.create({
-            driverId: driver._id,
-            Email: cleanEmail,
-            Otp: hashedOTP,
-            otpExpiresAt,
-            verified: false,
-            otpAttempts: 0,
-            resendCount: 0,
-            lastResendAt: null,
-        });
-
-        // ==========================================
-        // SEND OTP EMAIL
-        // ==========================================
-
-        await sendEmail({
-            to: cleanEmail,
-            subject: "Ride & Serve - Forgot Password OTP",
-            text: `Your Ride & Serve OTP is ${otp}. This OTP is valid for 2 minutes. If you did not request this OTP, please ignore this email.`,
-            html: `
-                <div>
-                    <h2>Ride & Serve</h2>
-
-                    <p>Your OTP for password reset is:</p>
-
-                    <h1>${otp}</h1>
-
-                    <p>
-                        This OTP is valid for 2 minutes.
-                    </p>
-
-                    <p>
-                        If you did not request this OTP,
-                        please ignore this email.
-                    </p>
-                </div>
-            `,
-        });
-
-        // ==========================================
-        // SUCCESS
-        // ==========================================
-
-        return res.status(200).json({
-            success: true,
-            message: "OTP sent successfully to your registered email",
-        });
-
-    } catch (error) {
-        console.error(
-            "Send Forgot Password OTP Error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message: "Server error",
-        });
-    }
-};
-
-// ==========================================
-// VERIFY FORGOT PASSWORD OTP
-// ==========================================
-
-const verifyForgotPasswordOTP = async (req, res) => {
+const forgotPasswordRequest = async (req, res) => {
     try {
         const {
-            Email,
-            Otp: enteredOTP,
+            countryCode,
+            PhoneNumber,
         } = req.body;
 
-        // ==========================================
         // VALIDATION
-        // ==========================================
-
-        if (!Email || !enteredOTP) {
+        if (!countryCode || !PhoneNumber) {
             return res.status(400).json({
-                success: false,
-                message: "Email and OTP are required",
-            });
-        }
-
-        // ==========================================
-        // CLEAN EMAIL
-        // ==========================================
-
-        const cleanEmail = Email.toLowerCase().trim();
-
-        // ==========================================
-        // GET LATEST UNVERIFIED OTP
-        // ==========================================
-
-        const otpRecord = await Otp.findOne({
-            Email: cleanEmail,
-            verified: false,
-        }).sort({
-            createdAt: -1,
-        });
-
-        if (!otpRecord) {
-            return res.status(400).json({
-                success: false,
-                message: "OTP not found",
-            });
-        }
-
-        // ==========================================
-        // CHECK EXPIRY
-        // ==========================================
-
-        if (
-            !otpRecord.otpExpiresAt ||
-            otpRecord.otpExpiresAt < new Date()
-        ) {
-            return res.status(400).json({
-                success: false,
-                message: "OTP has expired",
-            });
-        }
-
-        // ==========================================
-        // MAXIMUM ATTEMPTS
-        // ==========================================
-
-        if (otpRecord.otpAttempts >= 5) {
-            return res.status(429).json({
                 success: false,
                 message:
-                    "Too many incorrect attempts. Please request a new OTP.",
+                    "Country code and phone number are required",
             });
         }
 
-        // ==========================================
-        // COMPARE OTP
-        // ==========================================
+        // CLEAN COUNTRY CODE
+        const cleanCountryCode = countryCode
+            .toString()
+            .trim()
+            .replace(/\s+/g, "");
 
-        const isValid = await bcrypt.compare(
-            enteredOTP.toString(),
-            otpRecord.Otp
-        );
+        // CLEAN PHONE NUMBER
+        let cleanPhoneNumber = PhoneNumber
+            .toString()
+            .trim()
+            .replace(/\s+/g, "");
 
-        if (!isValid) {
-            otpRecord.otpAttempts += 1;
+        // If number starts with country code
+        // +923129582347
+        // convert to 3129582347
 
-            await otpRecord.save();
-
-            return res.status(400).json({
-                success: false,
-                message: "Invalid OTP",
-            });
+        if (
+            cleanPhoneNumber.startsWith(
+                cleanCountryCode
+            )
+        ) {
+            cleanPhoneNumber =
+                cleanPhoneNumber.slice(
+                    cleanCountryCode.length
+                );
         }
 
-        // ==========================================
-        // MARK OTP VERIFIED
-        // ==========================================
+        // If number starts with 0
+        // 03129582347
+        // convert to 3129582347
 
-        otpRecord.verified = true;
-
-        await otpRecord.save();
-
-        // ==========================================
-        // SUCCESS
-        // ==========================================
-
-        return res.status(200).json({
-            success: true,
-            message: "OTP verified successfully",
-            driverId: otpRecord.driverId,
-        });
-
-    } catch (error) {
-        console.error(
-            "Verify Forgot Password OTP Error:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            message: "Server error",
-        });
-    }
-};
-
-// ==========================================
-// RESEND FORGOT PASSWORD OTP
-// ==========================================
-
-const resendForgotPasswordOTP = async (req, res) => {
-    try {
-        const { Email } = req.body;
-
-        // ==========================================
-        // VALIDATION
-        // ==========================================
-
-        if (!Email) {
-            return res.status(400).json({
-                success: false,
-                message: "Email is required",
-            });
+        if (cleanPhoneNumber.startsWith("0")) {
+            cleanPhoneNumber =
+                cleanPhoneNumber.substring(1);
         }
 
-        // ==========================================
-        // CLEAN EMAIL
-        // ==========================================
-
-        const cleanEmail = Email.toLowerCase().trim();
-
-        // ==========================================
+        // ======================================================
         // FIND DRIVER
-        // ==========================================
+        // ======================================================
 
         const driver = await Driver.findOne({
-            Email: cleanEmail,
+            CountryCode: cleanCountryCode,
+            PhoneNumber: cleanPhoneNumber,
         });
 
         if (!driver) {
             return res.status(404).json({
                 success: false,
-                message: "No driver account found with this email",
+                message:
+                    "No driver account found with this phone number",
             });
         }
 
-        // ==========================================
-        // FIND LATEST OTP
-        // ==========================================
+        // ======================================================
+        // CHECK PENDING REQUEST
+        // ======================================================
 
-        const previousOTP = await Otp.findOne({
-            driverId: driver._id,
-            Email: cleanEmail,
-        }).sort({
-            createdAt: -1,
-        });
+        const existingRequest =
+            await PasswordResetRequest.findOne({
+                driver: driver._id,
+                status: "Pending",
+            });
 
-        // ==========================================
-        // 30 SECONDS RESEND COOLDOWN
-        // ==========================================
-
-        if (previousOTP?.lastResendAt) {
-            const secondsPassed =
-                (Date.now() -
-                    previousOTP.lastResendAt.getTime()) /
-                1000;
-
-            if (secondsPassed < 30) {
-                return res.status(429).json({
-                    success: false,
-                    message: `Please wait ${Math.ceil(
-                        30 - secondsPassed
-                    )} seconds before requesting another OTP`,
-                });
-            }
-        }
-
-        // ==========================================
-        // MAXIMUM 3 RESENDS
-        // ==========================================
-
-        if (
-            previousOTP &&
-            previousOTP.resendCount >= 3
-        ) {
-            return res.status(429).json({
+        if (existingRequest) {
+            return res.status(400).json({
                 success: false,
                 message:
-                    "Maximum resend limit reached. Please try again later.",
+                    "Your password reset request is already pending admin approval",
             });
         }
 
-        // ==========================================
-        // PRESERVE RESEND COUNT
-        // ==========================================
+        // ======================================================
+        // CREATE REQUEST
+        // ======================================================
 
-        const newResendCount =
-            (previousOTP?.resendCount || 0) + 1;
+        const passwordResetRequest =
+            await PasswordResetRequest.create({
+                driver: driver._id,
 
-        // ==========================================
-        // DELETE OLD OTP
-        // ==========================================
+                status: "Pending",
 
-        await Otp.deleteMany({
-            driverId: driver._id,
-        });
+                requestedAt: new Date(),
 
-        // ==========================================
-        // GENERATE NEW OTP
-        // ==========================================
+                createdBy: driver._id,
 
-        const otp = generateOTP();
+                updatedBy: null,
+            });
 
-        // ==========================================
-        // HASH NEW OTP
-        // ==========================================
-
-        const hashedOTP = await bcrypt.hash(
-            otp,
-            10
-        );
-
-        // ==========================================
-        // NEW OTP VALID FOR 2 MINUTES
-        // ==========================================
-
-        const otpExpiresAt = new Date(
-            Date.now() + 2 * 60 * 1000
-        );
-
-        // ==========================================
-        // SAVE NEW OTP
-        // ==========================================
-
-        await Otp.create({
-            driverId: driver._id,
-            Email: cleanEmail,
-            Otp: hashedOTP,
-            otpExpiresAt,
-            verified: false,
-            otpAttempts: 0,
-            resendCount: newResendCount,
-            lastResendAt: new Date(),
-        });
-
-        // ==========================================
-        // SEND NEW OTP EMAIL
-        // ==========================================
-
-        await sendEmail({
-            to: cleanEmail,
-            subject: "Ride & Serve - New Password Reset OTP",
-            text: `Your new Ride & Serve OTP is ${otp}. This OTP is valid for 2 minutes. If you did not request this OTP, please ignore this email.`,
-            html: `
-                <div>
-                    <h2>Ride & Serve</h2>
-
-                    <p>Your new OTP for password reset is:</p>
-
-                    <h1>${otp}</h1>
-
-                    <p>
-                        This OTP is valid for 2 minutes.
-                    </p>
-
-                    <p>
-                        If you did not request this OTP,
-                        please ignore this email.
-                    </p>
-                </div>
-            `,
-        });
-
-        // ==========================================
+        // ======================================================
         // SUCCESS
-        // ==========================================
+        // ======================================================
 
-        return res.status(200).json({
+        return res.status(201).json({
             success: true,
+
             message:
-                "New OTP sent successfully to your registered email",
+                "Password reset request sent successfully. Please wait for admin approval.",
+
+            data: {
+                requestId:
+                    passwordResetRequest._id,
+
+                driverId:
+                    driver._id,
+
+                status:
+                    passwordResetRequest.status,
+            },
         });
 
     } catch (error) {
         console.error(
-            "Resend OTP Error:",
+            "Forgot Password Request Error:",
             error
         );
 
         return res.status(500).json({
             success: false,
             message: "Server error",
+            error: error.message,
         });
     }
 };
 
-// ==========================================
+
+// ======================================================
+// 2. CHECK PASSWORD RESET REQUEST STATUS
+// ======================================================
+
+const checkPasswordResetStatus = async (req, res) => {
+    try {
+        const {
+            countryCode,
+            PhoneNumber,
+        } = req.body;
+
+        // VALIDATION
+        if (!countryCode || !PhoneNumber) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Country code and phone number are required",
+            });
+        }
+
+        // CLEAN COUNTRY CODE
+        const cleanCountryCode = countryCode
+            .toString()
+            .trim()
+            .replace(/\s+/g, "");
+
+        // CLEAN PHONE NUMBER
+        let cleanPhoneNumber = PhoneNumber
+            .toString()
+            .trim()
+            .replace(/\s+/g, "");
+
+        // Remove country code if included
+        if (
+            cleanPhoneNumber.startsWith(
+                cleanCountryCode
+            )
+        ) {
+            cleanPhoneNumber =
+                cleanPhoneNumber.slice(
+                    cleanCountryCode.length
+                );
+        }
+
+        // Remove starting 0
+        if (cleanPhoneNumber.startsWith("0")) {
+            cleanPhoneNumber =
+                cleanPhoneNumber.substring(1);
+        }
+
+        // ======================================================
+        // FIND DRIVER
+        // ======================================================
+
+        const driver = await Driver.findOne({
+            CountryCode: cleanCountryCode,
+            PhoneNumber: cleanPhoneNumber,
+        });
+
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: "Driver not found",
+            });
+        }
+
+        // ======================================================
+        // GET LATEST REQUEST
+        // ======================================================
+
+        const request =
+            await PasswordResetRequest.findOne({
+                driver: driver._id,
+            }).sort({
+                createdAt: -1,
+            });
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    "No password reset request found",
+            });
+        }
+
+        // ======================================================
+        // SUCCESS
+        // ======================================================
+
+        return res.status(200).json({
+            success: true,
+
+            message:
+                "Password reset request status fetched successfully",
+
+            status: request.status,
+
+            requestId:
+                request._id,
+
+            driverId:
+                driver._id,
+        });
+
+    } catch (error) {
+        console.error(
+            "Check Password Reset Status Error:",
+            error
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message,
+        });
+    }
+};
+
+
+// ======================================================
 // EXPORTS
-// ==========================================
+// ======================================================
 
 module.exports = {
-    sendForgotPasswordOTP,
-    verifyForgotPasswordOTP,
-    resendForgotPasswordOTP,
+    forgotPasswordRequest,
+    checkPasswordResetStatus,
 };

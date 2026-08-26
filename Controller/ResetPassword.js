@@ -1,11 +1,12 @@
 const bcrypt = require("bcryptjs");
+
 const Driver = require("../Schema/Driver");
-const Otp = require("../Schema/OTP.JS");
 
-// ==========================================
+const PasswordResetRequest = require(
+    "../Schema/Password"
+);
+
 // RESET DRIVER PASSWORD
-// ==========================================
-
 const resetPassword = async (req, res) => {
     try {
         const {
@@ -14,11 +15,13 @@ const resetPassword = async (req, res) => {
             ConfirmPassword,
         } = req.body;
 
-        // ==========================================
         // VALIDATION
-        // ==========================================
 
-        if (!driverId || !NewPassword || !ConfirmPassword) {
+        if (
+            !driverId ||
+            !NewPassword ||
+            !ConfirmPassword
+        ) {
             return res.status(400).json({
                 success: false,
                 message:
@@ -26,9 +29,7 @@ const resetPassword = async (req, res) => {
             });
         }
 
-        // ==========================================
         // CHECK PASSWORD MATCH
-        // ==========================================
 
         if (NewPassword !== ConfirmPassword) {
             return res.status(400).json({
@@ -38,29 +39,40 @@ const resetPassword = async (req, res) => {
             });
         }
 
-        // ==========================================
-        // FIND VERIFIED OTP
-        // ==========================================
+        // FIND LATEST PASSWORD RESET REQUEST
 
-        const otpRecord = await Otp.findOne({
-            driverId: driverId,
-            verified: true,
-        }).sort({
-            createdAt: -1,
-        });
+        const resetRequest =
+            await PasswordResetRequest.findOne({
+                driver: driverId,
+            }).sort({
+                createdAt: -1,
+            });
 
-        if (!otpRecord) {
+        if (!resetRequest) {
             return res.status(400).json({
                 success: false,
-                message: "Please verify OTP first",
+                message:
+                    "No password reset request found",
             });
         }
 
-        // ==========================================
-        // FIND DRIVER
-        // ==========================================
+        // CHECK ADMIN APPROVAL
 
-        const driver = await Driver.findById(driverId);
+        if (resetRequest.status !== "Approved") {
+            return res.status(403).json({
+                success: false,
+                message:
+                    resetRequest.status === "Pending"
+                        ? "Your password reset request is still pending admin approval"
+                        : "Your password reset request was rejected by admin",
+            });
+        }
+
+        // FIND DRIVER
+
+        const driver = await Driver.findById(
+            driverId
+        );
 
         if (!driver) {
             return res.status(404).json({
@@ -69,34 +81,26 @@ const resetPassword = async (req, res) => {
             });
         }
 
-        // ==========================================
         // HASH NEW PASSWORD
-        // ==========================================
 
         const hashedPassword = await bcrypt.hash(
             NewPassword,
             10
         );
 
-        // ==========================================
         // UPDATE PASSWORD
-        // ==========================================
 
         driver.Password = hashedPassword;
 
         await driver.save();
 
-        // ==========================================
-        // DELETE USED OTP
-        // ==========================================
+        // Approved request ko dobara use nahi hona chahiye
 
-        await Otp.deleteMany({
-            driverId: driverId,
-        });
+        resetRequest.status = "Used";
 
-        // ==========================================
+        await resetRequest.save();
+
         // SUCCESS
-        // ==========================================
 
         return res.status(200).json({
             success: true,

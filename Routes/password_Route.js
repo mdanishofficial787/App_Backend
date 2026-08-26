@@ -3,37 +3,36 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    sendForgotPasswordOTP,
-    verifyForgotPasswordOTP,
-    resendForgotPasswordOTP,
+    forgotPasswordRequest,
+    checkPasswordResetStatus,
 } = require("../Controller/forgetPassword");
+
 const {
     resetPassword,
 } = require("../Controller/ResetPassword");
 
-// ==========================================
-// 1. SEND OTP
-// ==========================================
+// ======================================================
+// DRIVER FORGOT PASSWORD
+// ======================================================
+
 router.post(
-    "/send-otp",
-    sendForgotPasswordOTP
+    "/forgot-password",
+    forgotPasswordRequest
 );
 
-// ==========================================
-// 2. VERIFY OTP
-// ==========================================
+// ======================================================
+// CHECK ADMIN APPROVAL STATUS
+// ======================================================
+
 router.post(
-    "/verify-otp",
-    verifyForgotPasswordOTP
+    "/forgot-password/status",
+    checkPasswordResetStatus
 );
 
-// ==========================================
-// 3. RESEND OTP
-// ==========================================
-router.post(
-    "/resend-otp",
-    resendForgotPasswordOTP
-);
+// ======================================================
+// RESET PASSWORD AFTER ADMIN APPROVAL
+// ======================================================
+
 router.post(
     "/reset-password",
     resetPassword

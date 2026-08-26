@@ -27,8 +27,19 @@ router.post(
 );
 
 // 2. LOGIN DRIVER
+// router.post(
+//   "/login",
+//   loginDriver
+// );
+// 2. LOGIN DRIVER
+
 router.post(
   "/login",
+  (req, res, next) => {
+    console.log("🔥🔥🔥 LOGIN ROUTE HIT 🔥🔥🔥");
+    console.log("BODY:", req.body);
+    next();
+  },
   loginDriver
 );
 

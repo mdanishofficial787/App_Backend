@@ -5,6 +5,9 @@ const DriverRoute = require("./Routes/driverRoute");
 const VehicleRoute = require("./Routes/vehicle_Route");
 const PasswordRoute = require("./Routes/password_Route");
 const AdminRoute = require("./Routes/Admin_Route");
+const ridePreferenceRoute = require("./Routes/Ridepre_Route");
+const AdminPassword = require("./Routes/AdminPassword");
+
 const app = express();
 
 app.use(express.json());
@@ -27,12 +30,24 @@ app.use("/driver", DriverRoute);
 app.use("/vehicle", VehicleRoute);
 app.use("/password", PasswordRoute);
 app.use("/admin", AdminRoute);
+app.use("/admin", AdminPassword);
+app.use("/Ride", ridePreferenceRoute);
+
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Ride & Serve API is running",
   });
 });
+app.get("/test", (req, res) => {
+  console.log("🔥🔥🔥 TEST ROUTE HIT 🔥🔥🔥");
+
+  res.status(200).json({
+    success: true,
+    message: "Test route working",
+  });
+});
+
 app.listen(8001, () => {
   console.log("Server is running on port 8001");
 });
