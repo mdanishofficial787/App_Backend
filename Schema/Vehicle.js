@@ -1,22 +1,14 @@
 const mongoose = require("mongoose");
-
 const VehicleSchema = new mongoose.Schema(
   {
-    // ==========================================
     // DRIVER REFERENCE
-    // ==========================================
-
     driver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Driver",
       required: true,
       unique: true,
     },
-
-    // ==========================================
     // VEHICLE INFORMATION
-    // ==========================================
-
     vehicleMake: {
       type: String,
       required: [true, "Vehicle make is required"],
@@ -53,23 +45,38 @@ const VehicleSchema = new mongoose.Schema(
       required: [true, "Vehicle color is required"],
       trim: true,
     },
-
-    // ==========================================
     // REGISTRATION BOOK
-    // PDF
-    // ==========================================
-
     registrationBook: {
-      url: {
-        type: String,
-        required: true,
+      front: {
+        url: {
+          type: String,
+          required: true,
+        },
+
+        public_id: {
+          type: String,
+          required: true,
+        },
       },
 
-      public_id: {
-        type: String,
-        required: true,
+      back: {
+        url: {
+          type: String,
+          required: true,
+        },
+
+        public_id: {
+          type: String,
+          required: true,
+        },
       },
     },
+    // REGISTRATION BOOK EXPIRY DATE
+    registrationBookExpiryDate: {
+      type: Date,
+      default: null,
+    },
+    // VEHICLE IMAGES
     vehicleImages: {
       frontView: {
         url: {
@@ -83,11 +90,7 @@ const VehicleSchema = new mongoose.Schema(
         },
       },
     },
-
-    // ==========================================
     // TRACKING
-    // ==========================================
-
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Driver",
@@ -99,23 +102,41 @@ const VehicleSchema = new mongoose.Schema(
       ref: "Driver",
       default: null,
     },
+    // ADMIN VERIFICATION
     verificationStatus: {
       type: String,
       enum: ["Pending", "Verified", "Rejected"],
       default: "Pending",
     },
+
+    // VEHICLE ACCOUNT STATUS
+    accountStatus: {
+      type: String,
+      enum: ["Active", "Blocked"],
+      default: "Active",
+    },
+    // UPDATE REQUIRED
+    updateRequired: {
+      type: Boolean,
+      default: false,
+    },
+    // EXPIRY WARNING
+    expiryWarning: {
+      type: String,
+      default: null,
+    },
+
+    // ADMIN UPDATE REQUEST
+    updateRequestStatus: {
+      type: String,
+      enum: ["None", "Pending", "Approved", "Rejected"],
+      default: "None",
+    },
   },
-
-  // ==========================================
   // TIMESTAMPS
-  // ==========================================
-
   {
     timestamps: true,
   }
 );
 
-module.exports = mongoose.model(
-  "Vehicle",
-  VehicleSchema
-);
+module.exports = mongoose.model("Vehicle", VehicleSchema);

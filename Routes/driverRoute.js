@@ -5,17 +5,18 @@ const Authr = require("../Middleware/Authr");
 const driverUpload = require("../Middleware/driverupload");
 const validateDriver = require("../Middleware/drivervalidation");
 
-// CONTROLLERS
 const {
   registerDriver,
   getDrivers,
   getDriverById,
-  updateDriver,
 } = require("../Controller/Driver");
 
-// Separate Login Controller
 const {
-  loginDriver
+  updateDriver,
+} = require("../Controller/UpdatedDriver");
+
+const {
+  loginDriver,
 } = require("../Controller/login");
 
 // 1. REGISTER DRIVER
@@ -27,19 +28,8 @@ router.post(
 );
 
 // 2. LOGIN DRIVER
-// router.post(
-//   "/login",
-//   loginDriver
-// );
-// 2. LOGIN DRIVER
-
 router.post(
   "/login",
-  (req, res, next) => {
-    console.log("🔥🔥🔥 LOGIN ROUTE HIT 🔥🔥🔥");
-    console.log("BODY:", req.body);
-    next();
-  },
   loginDriver
 );
 
@@ -56,12 +46,12 @@ router.get(
   Authr,
   getDriverById
 );
+
 // 5. UPDATE DRIVER
 router.patch(
-  "/:id",
+  "/update",
   Authr,
   driverUpload,
-  validateDriver,
   updateDriver
 );
 

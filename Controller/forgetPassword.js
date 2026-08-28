@@ -1,65 +1,42 @@
 const Driver = require("../Schema/Driver");
 const PasswordResetRequest = require("../Schema/Password");
 
-// ======================================================
-// 1. DRIVER SEND PASSWORD RESET REQUEST
-// ======================================================
+const generateRequestId = () => {
+    return `RESET-${Date.now()}-${Math.floor(
+        1000 + Math.random() * 9000
+    )}`;
+};
 
 const forgotPasswordRequest = async (req, res) => {
     try {
-        const {
-            countryCode,
-            PhoneNumber,
-        } = req.body;
+        const { countryCode, PhoneNumber } = req.body;
 
-        // VALIDATION
         if (!countryCode || !PhoneNumber) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "Country code and phone number are required",
+                message: "Country code and phone number are required",
             });
         }
 
-        // CLEAN COUNTRY CODE
         const cleanCountryCode = countryCode
             .toString()
             .trim()
             .replace(/\s+/g, "");
 
-        // CLEAN PHONE NUMBER
         let cleanPhoneNumber = PhoneNumber
             .toString()
             .trim()
             .replace(/\s+/g, "");
 
-        // If number starts with country code
-        // +923129582347
-        // convert to 3129582347
-
-        if (
-            cleanPhoneNumber.startsWith(
-                cleanCountryCode
-            )
-        ) {
-            cleanPhoneNumber =
-                cleanPhoneNumber.slice(
-                    cleanCountryCode.length
-                );
+        if (cleanPhoneNumber.startsWith(cleanCountryCode)) {
+            cleanPhoneNumber = cleanPhoneNumber.slice(
+                cleanCountryCode.length
+            );
         }
-
-        // If number starts with 0
-        // 03129582347
-        // convert to 3129582347
 
         if (cleanPhoneNumber.startsWith("0")) {
-            cleanPhoneNumber =
-                cleanPhoneNumber.substring(1);
+            cleanPhoneNumber = cleanPhoneNumber.substring(1);
         }
-
-        // ======================================================
-        // FIND DRIVER
-        // ======================================================
 
         const driver = await Driver.findOne({
             CountryCode: cleanCountryCode,
@@ -69,73 +46,66 @@ const forgotPasswordRequest = async (req, res) => {
         if (!driver) {
             return res.status(404).json({
                 success: false,
-                message:
-                    "No driver account found with this phone number",
+                message: "No driver account found with this phone number",
             });
         }
 
-        // ======================================================
-        // CHECK PENDING REQUEST
-        // ======================================================
-
-        const existingRequest =
-            await PasswordResetRequest.findOne({
-                driver: driver._id,
-                status: "Pending",
-            });
+        const existingRequest = await PasswordResetRequest.findOne({
+            driver: driver._id,
+            status: "Pending",
+        });
 
         if (existingRequest) {
             return res.status(400).json({
                 success: false,
                 message:
                     "Your password reset request is already pending admin approval",
+                requestId: existingRequest.requestId,
             });
         }
 
-        // ======================================================
-        // CREATE REQUEST
-        // ======================================================
+        let requestId;
+        let requestExists = true;
+
+        while (requestExists) {
+            requestId = generateRequestId();
+
+            requestExists = await PasswordResetRequest.findOne({
+                requestId,
+            });
+        }
 
         const passwordResetRequest =
             await PasswordResetRequest.create({
+                requestId,
                 driver: driver._id,
-
                 status: "Pending",
-
                 requestedAt: new Date(),
-
                 createdBy: driver._id,
-
                 updatedBy: null,
+                statusHistory: [
+                    {
+                        status: "Pending",
+                        changedAt: new Date(),
+                        changedBy: driver._id,
+                        changedByModel: "Driver",
+                        note: "Password reset request created",
+                    },
+                ],
             });
-
-        // ======================================================
-        // SUCCESS
-        // ======================================================
 
         return res.status(201).json({
             success: true,
-
             message:
                 "Password reset request sent successfully. Please wait for admin approval.",
-
             data: {
-                requestId:
-                    passwordResetRequest._id,
-
-                driverId:
-                    driver._id,
-
-                status:
-                    passwordResetRequest.status,
+                requestId: passwordResetRequest.requestId,
+                driverId: driver._id,
+                status: passwordResetRequest.status,
             },
         });
-
     } catch (error) {
-        console.error(
-            "Forgot Password Request Error:",
-            error
-        );
+        console.error("Forgot Password Request Error:", error);
 
         return res.status(500).json({
             success: false,
@@ -145,60 +115,36 @@ const forgotPasswordRequest = async (req, res) => {
     }
 };
 
-
-// ======================================================
-// 2. CHECK PASSWORD RESET REQUEST STATUS
-// ======================================================
-
 const checkPasswordResetStatus = async (req, res) => {
     try {
-        const {
-            countryCode,
-            PhoneNumber,
-        } = req.body;
+        const { countryCode, PhoneNumber } = req.body;
 
-        // VALIDATION
         if (!countryCode || !PhoneNumber) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "Country code and phone number are required",
+                message: "Country code and phone number are required",
             });
         }
 
-        // CLEAN COUNTRY CODE
         const cleanCountryCode = countryCode
             .toString()
             .trim()
             .replace(/\s+/g, "");
 
-        // CLEAN PHONE NUMBER
         let cleanPhoneNumber = PhoneNumber
             .toString()
             .trim()
             .replace(/\s+/g, "");
 
-        // Remove country code if included
-        if (
-            cleanPhoneNumber.startsWith(
-                cleanCountryCode
-            )
-        ) {
-            cleanPhoneNumber =
-                cleanPhoneNumber.slice(
-                    cleanCountryCode.length
-                );
+        if (cleanPhoneNumber.startsWith(cleanCountryCode)) {
+            cleanPhoneNumber = cleanPhoneNumber.slice(
+                cleanCountryCode.length
+            );
         }
 
-        // Remove starting 0
         if (cleanPhoneNumber.startsWith("0")) {
-            cleanPhoneNumber =
-                cleanPhoneNumber.substring(1);
+            cleanPhoneNumber = cleanPhoneNumber.substring(1);
         }
-
-        // ======================================================
-        // FIND DRIVER
-        // ======================================================
 
         const driver = await Driver.findOne({
             CountryCode: cleanCountryCode,
@@ -212,49 +158,32 @@ const checkPasswordResetStatus = async (req, res) => {
             });
         }
 
-        // ======================================================
-        // GET LATEST REQUEST
-        // ======================================================
-
-        const request =
-            await PasswordResetRequest.findOne({
-                driver: driver._id,
-            }).sort({
-                createdAt: -1,
-            });
+        const request = await PasswordResetRequest.findOne({
+            driver: driver._id,
+        }).sort({
+            createdAt: -1,
+        });
 
         if (!request) {
             return res.status(404).json({
                 success: false,
-                message:
-                    "No password reset request found",
+                message: "No password reset request found",
             });
         }
 
-        // ======================================================
-        // SUCCESS
-        // ======================================================
-
         return res.status(200).json({
             success: true,
-
             message:
                 "Password reset request status fetched successfully",
-
-            status: request.status,
-
-            requestId:
-                request._id,
-
-            driverId:
-                driver._id,
+            data: {
+                requestId: request.requestId,
+                driverId: driver._id,
+                status: request.status,
+                requestedAt: request.requestedAt,
+            },
         });
-
     } catch (error) {
-        console.error(
-            "Check Password Reset Status Error:",
-            error
-        );
+        console.error("Check Password Reset Status Error:", error);
 
         return res.status(500).json({
             success: false,
@@ -263,11 +192,6 @@ const checkPasswordResetStatus = async (req, res) => {
         });
     }
 };
-
-
-// ======================================================
-// EXPORTS
-// ======================================================
 
 module.exports = {
     forgotPasswordRequest,

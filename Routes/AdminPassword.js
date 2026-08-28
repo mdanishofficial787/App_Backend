@@ -10,40 +10,39 @@ const {
     updatePasswordResetStatus,
 } = require("../Controller/AdminPassword");
 
+// 1. GET PENDING REQUESTS
 
-// 1. Pending
 router.get(
     "/password-reset/pending",
     getPendingPasswordResetRequests
 );
 
+// 2. GET ALL REQUESTS
 
-// 2. All
 router.get(
     "/password-reset",
     getAllPasswordResetRequests
 );
 
+// 3. GET APPROVED REQUESTS
 
-// 3. Approved
 router.get(
     "/password-reset/approved",
     getApprovedPasswordResetRequests
 );
 
+// 4. GET REJECTED REQUESTS
 
-// 4. Rejected
 router.get(
     "/password-reset/rejected",
     getRejectedPasswordResetRequests
 );
 
+// 5. APPROVE / REJECT REQUEST
 
-// 5. Approve / Reject
 router.patch(
-    "/password-reset/:id/status",
+    "/password-reset/:requestId/status",
     updatePasswordResetStatus
 );
-
 
 module.exports = router;

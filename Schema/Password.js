@@ -1,94 +1,98 @@
 const mongoose = require("mongoose");
 
-// ==========================================
-// PASSWORD RESET REQUEST SCHEMA
-// ==========================================
+const statusHistorySchema = new mongoose.Schema(
+    {
+        status: {
+            type: String,
+            enum: ["Pending", "Approved", "Rejected", "Used"],
+            required: true,
+        },
+        changedAt: {
+            type: Date,
+            default: Date.now,
+        },
+        changedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            refPath: "changedByModel",
+            default: null,
+        },
+        changedByModel: {
+            type: String,
+            enum: ["Driver", "Admin"],
+            default: null,
+        },
+        note: {
+            type: String,
+            default: null,
+        },
+    },
+    {
+        _id: false,
+    }
+);
 
 const passwordResetRequestSchema = new mongoose.Schema(
     {
-        // ==========================================
-        // DRIVER
-        // ==========================================
-
+        requestId: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+        },
         driver: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
             required: true,
         },
-
-        // ==========================================
-        // REQUEST STATUS
-        // ==========================================
-
         status: {
             type: String,
-            enum: [
-                "Pending",
-                "Approved",
-                "Rejected",
-                "Used",
-            ],
+            enum: ["Pending", "Approved", "Rejected", "Used"],
             default: "Pending",
         },
-
-        // ==========================================
-        // REQUESTED AT
-        // ==========================================
-
         requestedAt: {
             type: Date,
             default: Date.now,
         },
-
-        // ==========================================
-        // APPROVED AT
-        // ==========================================
-
         approvedAt: {
             type: Date,
             default: null,
         },
-
-        // ==========================================
-        // REJECTED AT
-        // ==========================================
-
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Admin",
+            default: null,
+        },
         rejectedAt: {
             type: Date,
             default: null,
         },
-
-        // ==========================================
-        // CREATED BY
-        // Driver who created request
-        // ==========================================
-
+        rejectedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Admin",
+            default: null,
+        },
+        usedAt: {
+            type: Date,
+            default: null,
+        },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
             required: true,
         },
-
-        // ==========================================
-        // UPDATED BY
-        // Admin who approves/rejects request
-        // ==========================================
-
         updatedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Admin",
             default: null,
         },
+        statusHistory: [
+            statusHistorySchema,
+        ],
     },
     {
         timestamps: true,
     }
 );
-
-// ==========================================
-// EXPORT MODEL SAFELY
-// Prevent OverwriteModelError
-// ==========================================
 
 const PasswordResetRequest =
     mongoose.models.PasswordResetRequest ||

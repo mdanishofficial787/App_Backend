@@ -1,29 +1,20 @@
 const PasswordResetRequest = require("../Schema/Password");
-
-// ======================================================
-// 1. GET ALL PENDING PASSWORD RESET REQUESTS
-// ======================================================
-
-exports.getPendingPasswordResetRequests = async (
-    req,
-    res
-) => {
+exports.getPendingPasswordResetRequests = async (req, res) => {
     try {
-        const requests =
-            await PasswordResetRequest.find({
-                status: "Pending",
-            })
-                .populate(
-                    "driver",
-                    "Name PhoneNumber CountryCode CountryIso driverReferenceId"
-                )
-                .populate(
-                    "createdBy",
-                    "Name PhoneNumber"
-                )
-                .sort({
-                    createdAt: -1,
-                });
+        const requests = await PasswordResetRequest.find({
+            status: "Pending",
+        })
+            .populate(
+                "driver",
+                "Name PhoneNumber CountryCode CountryIso driverReferenceId"
+            )
+            .populate(
+                "createdBy",
+                "Name PhoneNumber"
+            )
+            .sort({
+                createdAt: -1,
+            });
 
         return res.status(200).json({
             success: true,
@@ -39,8 +30,7 @@ exports.getPendingPasswordResetRequests = async (
 
         return res.status(500).json({
             success: false,
-            message:
-                "Failed to fetch pending password reset requests",
+            message: "Failed to fetch pending password reset requests",
             error: error.message,
         });
     }
@@ -51,28 +41,20 @@ exports.getPendingPasswordResetRequests = async (
 // 2. GET ALL PASSWORD RESET REQUESTS
 // ======================================================
 
-exports.getAllPasswordResetRequests = async (
-    req,
-    res
-) => {
+exports.getAllPasswordResetRequests = async (req, res) => {
     try {
-        const requests =
-            await PasswordResetRequest.find()
-                .populate(
-                    "driver",
-                    "Name PhoneNumber CountryCode CountryIso driverReferenceId"
-                )
-                .populate(
-                    "createdBy",
-                    "Name PhoneNumber"
-                )
-                .populate(
-                    "updatedBy",
-                    "Name Email"
-                )
-                .sort({
-                    createdAt: -1,
-                });
+        const requests = await PasswordResetRequest.find()
+            .populate(
+                "driver",
+                "Name PhoneNumber CountryCode CountryIso driverReferenceId"
+            )
+            .populate(
+                "createdBy",
+                "Name PhoneNumber"
+            )
+            .sort({
+                createdAt: -1,
+            });
 
         return res.status(200).json({
             success: true,
@@ -88,8 +70,7 @@ exports.getAllPasswordResetRequests = async (
 
         return res.status(500).json({
             success: false,
-            message:
-                "Failed to fetch password reset requests",
+            message: "Failed to fetch password reset requests",
             error: error.message,
         });
     }
@@ -97,29 +78,21 @@ exports.getAllPasswordResetRequests = async (
 
 
 // ======================================================
-// 3. GET ALL APPROVED PASSWORD RESET REQUESTS
+// 3. GET APPROVED PASSWORD RESET REQUESTS
 // ======================================================
 
-exports.getApprovedPasswordResetRequests = async (
-    req,
-    res
-) => {
+exports.getApprovedPasswordResetRequests = async (req, res) => {
     try {
-        const requests =
-            await PasswordResetRequest.find({
-                status: "Approved",
-            })
-                .populate(
-                    "driver",
-                    "Name PhoneNumber CountryCode CountryIso driverReferenceId"
-                )
-                .populate(
-                    "updatedBy",
-                    "Name Email"
-                )
-                .sort({
-                    updatedAt: -1,
-                });
+        const requests = await PasswordResetRequest.find({
+            status: "Approved",
+        })
+            .populate(
+                "driver",
+                "Name PhoneNumber CountryCode CountryIso driverReferenceId"
+            )
+            .sort({
+                approvedAt: -1,
+            });
 
         return res.status(200).json({
             success: true,
@@ -135,8 +108,7 @@ exports.getApprovedPasswordResetRequests = async (
 
         return res.status(500).json({
             success: false,
-            message:
-                "Failed to fetch approved password reset requests",
+            message: "Failed to fetch approved password reset requests",
             error: error.message,
         });
     }
@@ -144,29 +116,21 @@ exports.getApprovedPasswordResetRequests = async (
 
 
 // ======================================================
-// 4. GET ALL REJECTED PASSWORD RESET REQUESTS
+// 4. GET REJECTED PASSWORD RESET REQUESTS
 // ======================================================
 
-exports.getRejectedPasswordResetRequests = async (
-    req,
-    res
-) => {
+exports.getRejectedPasswordResetRequests = async (req, res) => {
     try {
-        const requests =
-            await PasswordResetRequest.find({
-                status: "Rejected",
-            })
-                .populate(
-                    "driver",
-                    "Name PhoneNumber CountryCode CountryIso driverReferenceId"
-                )
-                .populate(
-                    "updatedBy",
-                    "Name Email"
-                )
-                .sort({
-                    updatedAt: -1,
-                });
+        const requests = await PasswordResetRequest.find({
+            status: "Rejected",
+        })
+            .populate(
+                "driver",
+                "Name PhoneNumber CountryCode CountryIso driverReferenceId"
+            )
+            .sort({
+                rejectedAt: -1,
+            });
 
         return res.status(200).json({
             success: true,
@@ -182,8 +146,7 @@ exports.getRejectedPasswordResetRequests = async (
 
         return res.status(500).json({
             success: false,
-            message:
-                "Failed to fetch rejected password reset requests",
+            message: "Failed to fetch rejected password reset requests",
             error: error.message,
         });
     }
@@ -194,83 +157,78 @@ exports.getRejectedPasswordResetRequests = async (
 // 5. APPROVE / REJECT PASSWORD RESET REQUEST
 // ======================================================
 
-exports.updatePasswordResetStatus = async (
-    req,
-    res
-) => {
+exports.updatePasswordResetStatus = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { requestId } = req.params;
         const { status } = req.body;
 
-        // ==================================================
-        // VALIDATE STATUS
-        // ==================================================
-
-        if (
-            !["Approved", "Rejected"].includes(
-                status
-            )
-        ) {
+        // CHECK REQUEST ID
+        if (!requestId) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "status must be either Approved or Rejected",
+                message: "Request ID is required",
             });
         }
 
-        // ==================================================
-        // FIND REQUEST
-        // ==================================================
+        // CHECK STATUS
+        if (!["Approved", "Rejected"].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: "Status must be either Approved or Rejected",
+            });
+        }
 
-        const request =
-            await PasswordResetRequest.findById(id);
+        // FIND REQUEST USING requestId
+        const request = await PasswordResetRequest.findOne({
+            requestId: requestId,
+        });
 
         if (!request) {
             return res.status(404).json({
                 success: false,
-                message:
-                    "Password reset request not found",
+                message: "Password reset request not found",
             });
         }
 
-        // ==================================================
         // ONLY PENDING REQUEST CAN BE UPDATED
-        // ==================================================
-
         if (request.status !== "Pending") {
             return res.status(400).json({
                 success: false,
                 message:
-                    `Password reset request is already ${request.status.toLowerCase()}.`,
+                    `Password reset request is already ${request.status.toLowerCase()}`,
             });
         }
 
-        // ==================================================
         // UPDATE STATUS
-        // ==================================================
-
         request.status = status;
 
-        // No Admin Auth for now
-        request.updatedBy = null;
-
-        // ==================================================
-        // APPROVED / REJECTED DATE
-        // ==================================================
-
+        // APPROVED
         if (status === "Approved") {
             request.approvedAt = new Date();
+
+            request.statusHistory.push({
+                status: "Approved",
+                changedAt: new Date(),
+                changedBy: null,
+                changedByModel: "Admin",
+                note: "Password reset request approved by admin",
+            });
         }
 
+        // REJECTED
         if (status === "Rejected") {
             request.rejectedAt = new Date();
+
+            request.statusHistory.push({
+                status: "Rejected",
+                changedAt: new Date(),
+                changedBy: null,
+                changedByModel: "Admin",
+                note: "Password reset request rejected by admin",
+            });
         }
 
         await request.save();
-
-        // ==================================================
-        // SUCCESS
-        // ==================================================
 
         return res.status(200).json({
             success: true,
@@ -282,19 +240,14 @@ exports.updatePasswordResetStatus = async (
 
             request: {
                 _id: request._id,
-
+                requestId: request.requestId,
                 driver: request.driver,
-
                 status: request.status,
-
-                createdBy: request.createdBy,
-
-                updatedBy: request.updatedBy,
-
                 approvedAt: request.approvedAt,
-
                 rejectedAt: request.rejectedAt,
-
+                usedAt: request.usedAt,
+                createdBy: request.createdBy,
+                statusHistory: request.statusHistory,
                 updatedAt: request.updatedAt,
             },
         });
@@ -305,19 +258,9 @@ exports.updatePasswordResetStatus = async (
             error
         );
 
-        // Invalid MongoDB ID
-        if (error.name === "CastError") {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Invalid password reset request ID",
-            });
-        }
-
         return res.status(500).json({
             success: false,
-            message:
-                "Failed to update password reset request status",
+            message: "Failed to update password reset request status",
             error: error.message,
         });
     }

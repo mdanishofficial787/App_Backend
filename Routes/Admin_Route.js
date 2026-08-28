@@ -1,90 +1,80 @@
 const express = require("express");
-
 const router = express.Router();
 
 const {
-    // DRIVER
     getPendingDrivers,
     getAllDrivers,
-    getVerifiedDrivers,
-    getRejectedDrivers,
     updateVerificationStatus,
+    getPendingDriverUpdates,
+    approveDriverUpdate,
+    rejectDriverUpdate,
+    markDriverUpdateRequired,
+} = require("../Controller/AdminDrivercontroller");
 
-    // VEHICLE
+const {
     getPendingVehicles,
     getAllVehicles,
     getVerifiedVehicles,
     getRejectedVehicles,
     updateVehicleVerificationStatus,
+} = require("../Controller/AdminVehicleController");
 
-} = require("../Controller/Admincontroller");
+// DRIVER
 
+router.get("/driver/pending", getPendingDrivers);
 
-// DRIVER ROUTES
-// Get pending drivers
-router.get(
-    "/driver/pending",
-    getPendingDrivers
-);
+router.get("/driver", getAllDrivers);
 
-// Get all drivers
-router.get(
-    "/driver",
-    getAllDrivers
-);
-
-// Get verified drivers
-router.get(
-    "/driver/verified",
-    getVerifiedDrivers
-);
-
-// Get rejected drivers
-router.get(
-    "/driver/rejected",
-    getRejectedDrivers
-);
-
-// Verify / Reject driver
 router.patch(
     "/driver/:id/verification",
     updateVerificationStatus
 );
 
+router.get(
+    "/driver/updates/pending",
+    getPendingDriverUpdates
+);
 
-// ======================================================
-// VEHICLE ROUTES
-// ======================================================
+router.patch(
+    "/driver/:id/update/approve",
+    approveDriverUpdate
+);
 
-// Get pending vehicles
+router.patch(
+    "/driver/:id/update/reject",
+    rejectDriverUpdate
+);
+
+router.patch(
+    "/driver/:id/update-required",
+    markDriverUpdateRequired
+);
+
+// VEHICLE
+
 router.get(
     "/vehicle/pending",
     getPendingVehicles
 );
 
-// Get all vehicles
 router.get(
     "/vehicle",
     getAllVehicles
 );
 
-// Get verified vehicles
 router.get(
     "/vehicle/verified",
     getVerifiedVehicles
 );
 
-// Get rejected vehicles
 router.get(
     "/vehicle/rejected",
     getRejectedVehicles
 );
 
-// Verify / Reject vehicle
 router.patch(
     "/vehicle/:id/verification",
     updateVehicleVerificationStatus
 );
-
 
 module.exports = router;

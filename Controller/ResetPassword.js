@@ -1,36 +1,32 @@
+
 const bcrypt = require("bcryptjs");
-
 const Driver = require("../Schema/Driver");
+const PasswordResetRequest = require("../Schema/Password");
 
-const PasswordResetRequest = require(
-    "../Schema/Password"
-);
-
-// RESET DRIVER PASSWORD
 const resetPassword = async (req, res) => {
     try {
         const {
             driverId,
+            requestId,
             NewPassword,
             ConfirmPassword,
         } = req.body;
 
-        // VALIDATION
-
+        // 1. CHECK REQUIRED FIELDS
         if (
             !driverId ||
+            !requestId ||
             !NewPassword ||
             !ConfirmPassword
         ) {
             return res.status(400).json({
                 success: false,
                 message:
-                    "Driver ID, new password and confirm password are required",
+                    "Driver ID, request ID, new password and confirm password are required",
             });
         }
 
-        // CHECK PASSWORD MATCH
-
+        // 2. CHECK PASSWORD MATCH
         if (NewPassword !== ConfirmPassword) {
             return res.status(400).json({
                 success: false,
@@ -39,72 +35,137 @@ const resetPassword = async (req, res) => {
             });
         }
 
-        // FIND LATEST PASSWORD RESET REQUEST
-
+        // 3. FIND RESET REQUEST
         const resetRequest =
             await PasswordResetRequest.findOne({
+                requestId: requestId,
                 driver: driverId,
-            }).sort({
-                createdAt: -1,
             });
 
         if (!resetRequest) {
-            return res.status(400).json({
+            return res.status(404).json({
                 success: false,
                 message:
-                    "No password reset request found",
+                    "Password reset request not found",
             });
         }
 
-        // CHECK ADMIN APPROVAL
+        // 4. CHECK STATUS
+        if (resetRequest.status === "Pending") {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Your password reset request is still pending admin approval",
+            });
+        }
+
+        if (resetRequest.status === "Rejected") {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Your password reset request was rejected by admin",
+            });
+        }
+
+        if (resetRequest.status === "Used") {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "This password reset request has already been used",
+            });
+        }
 
         if (resetRequest.status !== "Approved") {
             return res.status(403).json({
                 success: false,
                 message:
-                    resetRequest.status === "Pending"
-                        ? "Your password reset request is still pending admin approval"
-                        : "Your password reset request was rejected by admin",
+                    "You are not allowed to reset your password",
             });
         }
 
-        // FIND DRIVER
+        // 5. CHECK APPROVAL TIME
+        if (!resetRequest.approvedAt) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Password reset approval time not found",
+            });
+        }
 
-        const driver = await Driver.findById(
-            driverId
-        );
+        // 6. 15 MINUTES CHECK
+        const approvedTime =
+            new Date(resetRequest.approvedAt).getTime();
+
+        const currentTime =
+            new Date().getTime();
+
+        const fifteenMinutes =
+            15 * 60 * 1000;
+
+        if (
+            currentTime - approvedTime >=
+            fifteenMinutes
+        ) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Password reset request has expired. Please send a new request.",
+            });
+        }
+
+        // 7. FIND DRIVER
+        const driver =
+            await Driver.findById(driverId);
 
         if (!driver) {
             return res.status(404).json({
                 success: false,
-                message: "Driver account not found",
+                message:
+                    "Driver account not found",
             });
         }
 
-        // HASH NEW PASSWORD
+        // 8. HASH NEW PASSWORD
+        const hashedPassword =
+            await bcrypt.hash(
+                NewPassword,
+                10
+            );
 
-        const hashedPassword = await bcrypt.hash(
-            NewPassword,
-            10
-        );
-
-        // UPDATE PASSWORD
-
-        driver.Password = hashedPassword;
+        // 9. UPDATE PASSWORD
+        driver.Password =
+            hashedPassword;
 
         await driver.save();
 
-        // Approved request ko dobara use nahi hona chahiye
-
+        // 10. MARK REQUEST AS USED
         resetRequest.status = "Used";
+        resetRequest.usedAt = new Date();
+
+        resetRequest.statusHistory.push({
+            status: "Used",
+            changedAt: new Date(),
+            changedBy: driver._id,
+            changedByModel: "Driver",
+            note:
+                "Password reset successfully completed",
+        });
 
         await resetRequest.save();
 
-        // SUCCESS
-
+        // 11. SUCCESS RESPONSE
         return res.status(200).json({
             success: true,
-            message: "Password reset successfully",
+            message:
+                "Password reset successfully",
+            data: {
+                requestId:
+                    resetRequest.requestId,
+                status:
+                    resetRequest.status,
+                usedAt:
+                    resetRequest.usedAt,
+            },
         });
 
     } catch (error) {
@@ -124,3 +185,4 @@ const resetPassword = async (req, res) => {
 module.exports = {
     resetPassword,
 };
+

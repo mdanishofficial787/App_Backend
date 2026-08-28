@@ -6,7 +6,7 @@ const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     "image/jpeg",
     "image/jpg",
-    "image/png",
+    "image/png"
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
@@ -20,14 +20,12 @@ const fileFilter = (req, file, cb) => {
 };
 
 const uploadVehicle = multer({
-  storage: storage,
-
+  storage,
   limits: {
     fileSize: 5 * 1024 * 1024,
-    files: 2,
+    files: 3
   },
-
-  fileFilter: fileFilter,
+  fileFilter
 });
 
 module.exports = uploadVehicle;
