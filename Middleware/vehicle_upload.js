@@ -1,15 +1,21 @@
 const uploadVehicle = require("../Multer/Vehicle_upload");
 
-// 1. Define Multer Fields (registrationBook and frontView)
+// MULTER FIELDS
 const fieldsMiddleware = uploadVehicle.fields([
-  { name: "registrationBook", maxCount: 1 },
+  { name: "registrationBookFront", maxCount: 1 },
+  { name: "registrationBookBack", maxCount: 1 },
   { name: "frontView", maxCount: 1 },
 ]);
 
-// 2. Base Multer Error Handling Wrapper
+
+// MULTER ERROR HANDLING
+
 const handleMulterUpload = (req, res, next) => {
+
   fieldsMiddleware(req, res, (err) => {
+
     if (err) {
+
       if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
           success: false,
@@ -20,7 +26,7 @@ const handleMulterUpload = (req, res, next) => {
       if (err.code === "LIMIT_UNEXPECTED_FILE") {
         return res.status(400).json({
           success: false,
-          message: `Unexpected field '${err.field}'. Only 'registrationBook' and 'frontView' are allowed.`,
+          message: `Unexpected field '${err.field}'. Only 'registrationBookFront', 'registrationBookBack' and 'frontView' are allowed.`,
         });
       }
 
@@ -34,14 +40,27 @@ const handleMulterUpload = (req, res, next) => {
   });
 };
 
-// 3. For Create Vehicle (Files are MANDATORY)
-const vehicleCreateUpload = (req, res, next) => {
-  handleMulterUpload(req, res, (err) => {
-    if (err) return next(err);
 
-    const requiredFields = ["registrationBook", "frontView"];
+// CREATE VEHICLE
+const vehicleCreateUpload = (req, res, next) => {
+
+  handleMulterUpload(req, res, (err) => {
+
+    if (err) {
+      return next(err);
+    }
+
+    const requiredFields = [
+      "registrationBookFront",
+      "registrationBookBack",
+      "frontView",
+    ];
+
     const missingFields = requiredFields.filter(
-      (field) => !req.files || !req.files[field] || req.files[field].length === 0
+      (field) =>
+        !req.files ||
+        !req.files[field] ||
+        req.files[field].length === 0
     );
 
     if (missingFields.length > 0) {
@@ -55,13 +74,17 @@ const vehicleCreateUpload = (req, res, next) => {
   });
 };
 
-// 4. For Update Vehicle (Files are OPTIONAL - user might only update text fields)
+
+// UPDATE VEHICLE
 const vehicleUpdateUpload = (req, res, next) => {
   handleMulterUpload(req, res, next);
 };
 
+
+// EXPORT
+
 module.exports = {
-  vehicleUpload: vehicleCreateUpload, // Default backward compatibility
+  vehicleUpload: vehicleCreateUpload,
   vehicleCreateUpload,
   vehicleUpdateUpload,
 };

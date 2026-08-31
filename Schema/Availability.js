@@ -1,75 +1,104 @@
 const mongoose = require("mongoose");
 
-// TIME SLOT SCHEMA
 const timeSlotSchema = new mongoose.Schema(
     {
         startTime: {
             type: String,
             required: true,
+            match: /^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/
         },
-
         endTime: {
             type: String,
-            required: true,
+            default: null,
+            match: /^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/
         },
-
-        untilNextTrip: {
+        flexibleAfterDropoff: {
             type: Boolean,
-            default: false,
-        },
+            default: false
+        }
     },
     {
-        _id: true,
+        _id: true
     }
 );
 
-// AVAILABILITY SCHEMA
+const dayAvailabilitySchema = new mongoose.Schema(
+    {
+        day: {
+            type: String,
+            enum: [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ],
+            required: true
+        },
+        timeSlots: {
+            type: [timeSlotSchema],
+            default: []
+        }
+    },
+    {
+        _id: false
+    }
+);
+
 const availabilitySchema = new mongoose.Schema(
     {
         driver: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
             required: true,
+            unique: true
         },
-
         repeatSchedule: {
             type: String,
             enum: ["same", "different"],
-            default: "same",
+            required: true
         },
-
-        selectedDays: [
-            {
-                type: String,
-                enum: [
-                    "Mon",
-                    "Tue",
-                    "Wed",
-                    "Thu",
-                    "Fri",
-                    "Sat",
-                    "Sun",
-                ],
-            },
-        ],
-
-        timeSlots: [timeSlotSchema],
-
-        flexibleAfterDropoff: {
-            type: Boolean,
-            default: false,
+        selectedDays: {
+            type: [
+                {
+                    type: String,
+                    enum: [
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                        "Sunday"
+                    ]
+                }
+            ],
+            default: []
         },
+        timeSlots: {
+            type: [timeSlotSchema],
+            default: []
+        },
+        dayAvailability: {
+            type: [dayAvailabilitySchema],
+            default: []
+        },
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Driver",
+            required: true
+        },
+        updatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Driver",
+            default: null
+        }
     },
     {
-        timestamps: true,
+        timestamps: true
     }
 );
 
-// CREATE MODEL
-const Availability = mongoose.model(
-    "Availability",
-    availabilitySchema
-);
-
-// EXPORT MODEL
-module.exports = Availability;
+module.exports = mongoose.model("Availability", availabilitySchema);

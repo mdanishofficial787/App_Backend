@@ -5,10 +5,11 @@ const DriverRoute = require("./Routes/driverRoute");
 const VehicleRoute = require("./Routes/vehicle_Route");
 const PasswordRoute = require("./Routes/password_Route");
 const AdminRoute = require("./Routes/Admin_Route");
-const ridePreferenceRoute = require("./Routes/Ridepre_Route");
 const AdminPassword = require("./Routes/AdminPassword");
-const AvailabilityRoute = require("./Routes/Availability_Route");
 const AutoLoginRoute = require("./Routes/AutoLogin_Route");
+const preferredRoute = require("./Routes/PrefferRoute");
+const availabilityRoute = require("./Routes/Availbity_Route");
+
 
 const app = express();
 app.use(express.json());
@@ -33,8 +34,8 @@ app.use("/password", PasswordRoute);
 app.use("/admin", AdminRoute);
 app.use("/admin", AdminPassword);
 app.use("/driver", AutoLoginRoute);
-app.use("/Ride", ridePreferenceRoute);
-app.use("/timeslot", AvailabilityRoute);
+app.use("/Ride", preferredRoute);
+app.use("/availability", availabilityRoute);
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,

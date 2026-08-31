@@ -1,80 +1,42 @@
 const express = require("express");
+
 const router = express.Router();
 
 const {
-    getPendingDrivers,
-    getAllDrivers,
-    updateVerificationStatus,
-    getPendingDriverUpdates,
-    approveDriverUpdate,
-    rejectDriverUpdate,
-    markDriverUpdateRequired,
-} = require("../Controller/AdminDrivercontroller");
+    getPendingDriverVehicle,
+    getAllDriverVehicle,
+    updateDriverVehicleStatus,
+} = require("../Controller/AdminApprovalController");
 
-const {
-    getPendingVehicles,
-    getAllVehicles,
-    getVerifiedVehicles,
-    getRejectedVehicles,
-    updateVehicleVerificationStatus,
-} = require("../Controller/AdminVehicleController");
 
-// DRIVER
-
-router.get("/driver/pending", getPendingDrivers);
-
-router.get("/driver", getAllDrivers);
-
-router.patch(
-    "/driver/:id/verification",
-    updateVerificationStatus
-);
+// ==========================================
+// GET PENDING DRIVER + VEHICLE
+// ==========================================
 
 router.get(
-    "/driver/updates/pending",
-    getPendingDriverUpdates
+    "/driver-vehicle/pending",
+    getPendingDriverVehicle
 );
 
-router.patch(
-    "/driver/:id/update/approve",
-    approveDriverUpdate
-);
 
-router.patch(
-    "/driver/:id/update/reject",
-    rejectDriverUpdate
-);
-
-router.patch(
-    "/driver/:id/update-required",
-    markDriverUpdateRequired
-);
-
-// VEHICLE
+// ==========================================
+// GET ALL DRIVER + VEHICLE
+// ==========================================
 
 router.get(
-    "/vehicle/pending",
-    getPendingVehicles
+    "/driver-vehicle",
+    getAllDriverVehicle
 );
 
-router.get(
-    "/vehicle",
-    getAllVehicles
-);
 
-router.get(
-    "/vehicle/verified",
-    getVerifiedVehicles
-);
-
-router.get(
-    "/vehicle/rejected",
-    getRejectedVehicles
-);
+// ==========================================
+// APPROVE / REJECT / PENDING
+// ==========================================
 
 router.patch(
-    "/vehicle/:id/verification",
-    updateVehicleVerificationStatus
+    "/driver-vehicle/:id/verification",
+    updateDriverVehicleStatus
 );
+
 
 module.exports = router;

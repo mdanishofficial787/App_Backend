@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const ridePreferenceSchema = new mongoose.Schema(
+const preferredRouteSchema = new mongoose.Schema(
     {
         driver: {
             type: mongoose.Schema.Types.ObjectId,
@@ -13,53 +13,44 @@ const ridePreferenceSchema = new mongoose.Schema(
                 type: Number,
                 required: true,
             },
-
             longitude: {
                 type: Number,
                 required: true,
             },
-
             address: {
                 type: String,
-                trim: true,
-                default: null,
+                required: true,
             },
         },
+
         endLocation: {
             latitude: {
                 type: Number,
                 required: true,
             },
-
             longitude: {
                 type: Number,
                 required: true,
             },
-
             address: {
                 type: String,
-                trim: true,
-                default: null,
+                required: true,
             },
         },
-
 
         preferredTime: {
             type: String,
             required: true,
-            trim: true,
         },
 
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
-            required: true,
         },
 
         updatedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Driver",
-            default: null,
         },
     },
     {
@@ -67,4 +58,4 @@ const ridePreferenceSchema = new mongoose.Schema(
     }
 );
 
-module.exports = mongoose.model("RidePreference", ridePreferenceSchema);
+module.exports = mongoose.model("PreferredRoute", preferredRouteSchema);

@@ -240,13 +240,11 @@ const registerDriver = async (req, res) => {
       backgroundCheckConsent:
         backgroundCheckConsent === true ||
         backgroundCheckConsent === "true",
-
       verificationStatus: "Pending",
       accountStatus: "Active",
       updateRequired: false,
       expiryWarning: null,
       updateRequestStatus: "None",
-
       driverPhoto,
       CnicFront,
       CnicBack,
@@ -255,11 +253,8 @@ const registerDriver = async (req, res) => {
     });
 
     await newDriver.save();
-
     const token = generateToken(newDriver._id);
-
     const driverResponse = newDriver.toObject();
-
     delete driverResponse.Password;
     delete driverResponse.rememberMe;
 
