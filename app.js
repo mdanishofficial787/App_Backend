@@ -9,7 +9,9 @@ const AdminPassword = require("./Routes/AdminPassword");
 const AutoLoginRoute = require("./Routes/AutoLogin_Route");
 const preferredRoute = require("./Routes/PrefferRoute");
 const availabilityRoute = require("./Routes/Availbity_Route");
-
+const rideRoute = require("./Routes/RideRoutes");
+const MatchRoute = require("./Routes/MatchRoute");
+const DriverReportRoute = require("./Routes/DriverReport_Routes");
 
 const app = express();
 app.use(express.json());
@@ -36,6 +38,11 @@ app.use("/admin", AdminPassword);
 app.use("/driver", AutoLoginRoute);
 app.use("/Ride", preferredRoute);
 app.use("/availability", availabilityRoute);
+app.use("/ride", rideRoute);
+app.use("/route", MatchRoute);
+app.use("/driver-report", DriverReportRoute);
+
+// 4. Home Route
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,

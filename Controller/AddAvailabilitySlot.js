@@ -111,7 +111,6 @@ const addAvailabilitySlot = async (req, res) => {
             endTime: isFlexible ? null : endTime,
             flexibleAfterDropoff: isFlexible
         };
-
         if (availability.repeatSchedule === "same") {
             for (const day of days) {
                 if (!availability.selectedDays.includes(day)) {

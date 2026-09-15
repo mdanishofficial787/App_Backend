@@ -1,5 +1,4 @@
 const PreferredRoute = require("../Schema/RidePreference");
-
 const createPreferredRoute = async (req, res) => {
     try {
         const driverId = req.user.id;
@@ -15,7 +14,6 @@ const createPreferredRoute = async (req, res) => {
         });
 
         await preferredRoute.save();
-
         return res.status(201).json({
             success: true,
             message: "Preferred route created successfully",
