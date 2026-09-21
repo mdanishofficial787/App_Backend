@@ -1,6 +1,6 @@
+const mongoose = require("mongoose");
 const Driver = require("../Schema/Driver");
 const Vehicle = require("../Schema/Vehicle");
-
 
 // ==========================================
 // GET PENDING DRIVER + VEHICLE
@@ -8,36 +8,38 @@ const Vehicle = require("../Schema/Vehicle");
 exports.getPendingDriverVehicle = async (req, res) => {
     try {
         const drivers = await Driver.find({
-            verificationStatus: "Pending",
+            verificationStatus: "Pending"
         })
             .select("-Password")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         const result = [];
 
         for (const driver of drivers) {
             const vehicle = await Vehicle.findOne({
-                driver: driver._id,
-            });
+                driver: driver._id
+            }).lean();
 
             result.push({
                 driver,
-                vehicle,
+                vehicle
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: result.length,
-            data: result,
+            data: result
         });
 
     } catch (error) {
         console.error("Get Pending Driver Vehicle Error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch pending driver and vehicle",
+            error: error.message
         });
     }
 };
@@ -50,105 +52,249 @@ exports.getAllDriverVehicle = async (req, res) => {
     try {
         const drivers = await Driver.find()
             .select("-Password")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         const result = [];
 
         for (const driver of drivers) {
             const vehicle = await Vehicle.findOne({
-                driver: driver._id,
-            });
+                driver: driver._id
+            }).lean();
 
             result.push({
                 driver,
-                vehicle,
+                vehicle
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             count: result.length,
-            data: result,
+            data: result
         });
 
     } catch (error) {
         console.error("Get All Driver Vehicle Error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch drivers and vehicles",
+            error: error.message
         });
     }
 };
 
 
 // ==========================================
-// UPDATE DRIVER + VEHICLE STATUS
+// APPROVE DRIVER + VEHICLE
 // ==========================================
-exports.updateDriverVehicleStatus = async (req, res) => {
+exports.approveDriverVehicle = async (req, res) => {
     try {
         const { id } = req.params;
-        const { verificationStatus } = req.body;
 
-        // Validate status
-        if (!["Pending", "Verified", "Rejected"].includes(verificationStatus)) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
-                message: "Status must be Pending, Verified or Rejected",
+                message: "Invalid driver ID"
             });
         }
 
-        // Find Driver
         const driver = await Driver.findById(id);
 
         if (!driver) {
             return res.status(404).json({
                 success: false,
-                message: "Driver not found",
+                message: "Driver not found"
             });
         }
 
-        // Find Vehicle
         const vehicle = await Vehicle.findOne({
-            driver: driver._id,
+            driver: driver._id
         });
 
         if (!vehicle) {
             return res.status(404).json({
                 success: false,
-                message: "Vehicle not found for this driver",
+                message: "Vehicle not found for this driver"
             });
         }
 
-        // Update Driver
-        driver.verificationStatus = verificationStatus;
-
-        // Update Vehicle
-        vehicle.verificationStatus = verificationStatus;
+        driver.verificationStatus = "Verified";
+        vehicle.verificationStatus = "Verified";
 
         await driver.save();
         await vehicle.save();
 
         const driverResult = driver.toObject();
-
         delete driverResult.Password;
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            message: `Driver and vehicle ${verificationStatus} successfully`,
+            message: "Driver and vehicle approved successfully",
             data: {
                 driver: driverResult,
-                vehicle: vehicle,
-            },
+                vehicle
+            }
         });
 
     } catch (error) {
-        console.error("Update Driver Vehicle Status Error:", error);
+        console.error("Approve Driver Vehicle Error:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: "Failed to update driver and vehicle status",
-            error: error.message,
+            message: "Failed to approve driver and vehicle",
+            error: error.message
+        });
+    }
+};
+
+
+// ==========================================
+// REJECT DRIVER + VEHICLE
+// ==========================================
+exports.rejectDriverVehicle = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid driver ID"
+            });
+        }
+
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Rejection reason is required"
+            });
+        }
+
+        const driver = await Driver.findById(id);
+
+        if (!driver) {
+            return res.status(404).json({
+                success: false,
+                message: "Driver not found"
+            });
+        }
+
+        const vehicle = await Vehicle.findOne({
+            driver: driver._id
+        });
+
+        if (!vehicle) {
+            return res.status(404).json({
+                success: false,
+                message: "Vehicle not found for this driver"
+            });
+        }
+
+        driver.verificationStatus = "Rejected";
+        driver.updateAdminMessage = reason.trim();
+
+        vehicle.verificationStatus = "Rejected";
+
+        await driver.save();
+        await vehicle.save();
+
+        const driverResult = driver.toObject();
+        delete driverResult.Password;
+
+        return res.status(200).json({
+            success: true,
+            message: "Driver and vehicle rejected successfully",
+            data: {
+                driver: driverResult,
+                vehicle,
+                rejectionReason: reason.trim()
+            }
+        });
+
+    } catch (error) {
+        console.error("Reject Driver Vehicle Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to reject driver and vehicle",
+            error: error.message
+        });
+    }
+};
+
+
+// ==========================================
+// GET APPROVAL STATISTICS
+// ==========================================
+exports.getApprovalStats = async (req, res) => {
+    try {
+        const [
+            totalDrivers,
+            approvedDrivers,
+            pendingDrivers,
+            rejectedDrivers,
+            totalVehicles,
+            approvedVehicles,
+            pendingVehicles,
+            rejectedVehicles
+        ] = await Promise.all([
+            Driver.countDocuments(),
+
+            Driver.countDocuments({
+                verificationStatus: "Verified"
+            }),
+
+            Driver.countDocuments({
+                verificationStatus: "Pending"
+            }),
+
+            Driver.countDocuments({
+                verificationStatus: "Rejected"
+            }),
+
+            Vehicle.countDocuments(),
+
+            Vehicle.countDocuments({
+                verificationStatus: "Verified"
+            }),
+
+            Vehicle.countDocuments({
+                verificationStatus: "Pending"
+            }),
+
+            Vehicle.countDocuments({
+                verificationStatus: "Rejected"
+            })
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            message: "Approval statistics retrieved successfully",
+            data: {
+                drivers: {
+                    total: totalDrivers,
+                    approved: approvedDrivers,
+                    pending: pendingDrivers,
+                    rejected: rejectedDrivers
+                },
+                vehicles: {
+                    total: totalVehicles,
+                    approved: approvedVehicles,
+                    pending: pendingVehicles,
+                    rejected: rejectedVehicles
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("Get Approval Stats Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve approval statistics",
+            error: error.message
         });
     }
 };

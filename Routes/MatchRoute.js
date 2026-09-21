@@ -6,8 +6,9 @@ const Authr = require("../Middleware/Authr");
 
 const {
     getSuggestedRoutes,
-    saveDriverPreference
-} = require("../Controller/ManageRoute");
+    saveDriverPreference,
+    getDriverPreference
+} = require("../Controller/MatchRoute");
 
 router.get("/test", (req, res) => {
     res.json({
@@ -21,6 +22,13 @@ router.get(
     "/route-suggestions",
     Authr,
     getSuggestedRoutes
+);
+
+// GET DRIVER PREFERENCE
+router.get(
+    "/route-preference",
+    Authr,
+    getDriverPreference
 );
 
 // SAVE PREFERRED ROUTE

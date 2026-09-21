@@ -16,7 +16,7 @@ const driverPreferenceSchema = new mongoose.Schema(
 
         preferredTimeSlot: {
             type: String,
-            required: true
+            required: false
         },
 
         startPoint: {

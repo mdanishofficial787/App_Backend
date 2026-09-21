@@ -27,6 +27,7 @@ main().
   })
 async function main() {
   await mongoose.connect(DBurl)
+
 }
 
 // 3. Register Routes

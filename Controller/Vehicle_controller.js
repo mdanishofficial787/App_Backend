@@ -52,6 +52,10 @@ const isValidObjectId = (id) =>
 
 const getDriverId = (req) => req.user?.id;
 
+// ==========================================
+// GET VEHICLE FILES
+// ==========================================
+
 const getVehicleFiles = (req) => {
   const files = req.files || {};
 
@@ -66,6 +70,10 @@ const getVehicleFiles = (req) => {
       files.frontView?.[0],
   };
 };
+
+// ==========================================
+// CLEANUP CLOUDINARY FILES
+// ==========================================
 
 const cleanupCloudinaryFiles = async (files) => {
   if (!files.length) return;
@@ -87,7 +95,10 @@ const createVehicle = async (req, res) => {
   try {
     const driverId = getDriverId(req);
 
+    // ==========================================
     // AUTH CHECK
+    // ==========================================
+
     if (
       !driverId ||
       !isValidObjectId(driverId)
@@ -98,7 +109,10 @@ const createVehicle = async (req, res) => {
       });
     }
 
+    // ==========================================
     // CHECK DRIVER
+    // ==========================================
+
     const driver = await Driver.findById(driverId);
 
     if (!driver) {
@@ -121,7 +135,10 @@ const createVehicle = async (req, res) => {
       vehicleColor,
     } = req.body;
 
+    // ==========================================
     // REQUIRED TEXT FIELDS
+    // ==========================================
+
     const requiredFields = {
       vehicleMake,
       vehicleModel,
@@ -141,12 +158,16 @@ const createVehicle = async (req, res) => {
     if (missingFields.length > 0) {
       return res.status(400).json({
         success: false,
-        message: "Please fill all required vehicle fields.",
+        message:
+          "Please fill all required vehicle fields.",
         missingFields,
       });
     }
 
+    // ==========================================
     // SEATS VALIDATION
+    // ==========================================
+
     const seats = Number(numberOfSeats);
 
     if (
@@ -225,6 +246,10 @@ const createVehicle = async (req, res) => {
       registrationBookBack,
       frontView,
     } = getVehicleFiles(req);
+
+    // ==========================================
+    // REQUIRED FILE CHECK
+    // ==========================================
 
     if (!registrationBookFront) {
       return res.status(400).json({
@@ -380,17 +405,26 @@ const createVehicle = async (req, res) => {
         },
       },
 
-      createdBy: driverId,
+      createdBy:
+        driverId,
 
-      updatedBy: null,
+      updatedBy:
+        null,
 
-      verificationStatus: "Pending",
+      verificationStatus:
+        "Pending",
     });
+
+    // ==========================================
+    // SUCCESS RESPONSE
+    // ==========================================
 
     return res.status(201).json({
       success: true,
+
       message:
         "Vehicle registered successfully. Vehicle information has been submitted for admin approval.",
+
       vehicle,
     });
 
@@ -400,12 +434,18 @@ const createVehicle = async (req, res) => {
       error
     );
 
-    // CLEAN UP UPLOADED FILES
+    // ==========================================
+    // CLEANUP CLOUDINARY FILES
+    // ==========================================
+
     await cleanupCloudinaryFiles(
       uploadedPublicIds
     );
 
+    // ==========================================
     // DUPLICATE KEY
+    // ==========================================
+
     if (error.code === 11000) {
       const duplicateField =
         Object.keys(
@@ -414,6 +454,7 @@ const createVehicle = async (req, res) => {
 
       return res.status(409).json({
         success: false,
+
         message:
           duplicateField === "driver"
             ? "This driver already has a vehicle."
@@ -424,26 +465,37 @@ const createVehicle = async (req, res) => {
       });
     }
 
+    // ==========================================
     // MONGOOSE VALIDATION
+    // ==========================================
+
     if (
       error.name === "ValidationError"
     ) {
-      const errors = Object.values(
-        error.errors
-      ).map(
-        (err) => err.message
-      );
+      const errors =
+        Object.values(
+          error.errors
+        ).map(
+          (err) => err.message
+        );
 
       return res.status(400).json({
         success: false,
+
         message:
           "Vehicle validation failed.",
+
         errors,
       });
     }
 
+    // ==========================================
+    // SERVER ERROR
+    // ==========================================
+
     return res.status(500).json({
       success: false,
+
       message:
         "Failed to register vehicle. Please try again later.",
     });
@@ -595,7 +647,10 @@ const deleteVehicle = async (req, res) => {
       });
     }
 
-    // FIND ONLY DRIVER'S VEHICLE
+    // ==========================================
+    // FIND DRIVER'S VEHICLE
+    // ==========================================
+
     const vehicle =
       await Vehicle.findOne({
         _id: id,
