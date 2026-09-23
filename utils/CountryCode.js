@@ -10,7 +10,6 @@ const {
 const parseGlobalPhoneNumber = (inputPhone, defaultCountryIso = null) => {
     const raw = String(inputPhone || "").trim();
 
-    // Return early if no phone number provided
     if (!raw) {
         return {
             isValid: false,
@@ -23,14 +22,11 @@ const parseGlobalPhoneNumber = (inputPhone, defaultCountryIso = null) => {
 
     let parsed = null;
 
-    // 1. Parse standard E.164 number with leading "+"
     if (raw.startsWith("+")) {
         parsed = parsePhoneNumberFromString(raw);
     } else {
-        // 2. Try parsing with added "+" prefix first
         parsed = parsePhoneNumberFromString(`+${raw}`);
 
-        // 3. Fallback to local number parsing using provided country ISO (e.g. "03001234567" + "PK")
         if ((!parsed || !parsed.isValid()) && defaultCountryIso) {
             parsed = parsePhoneNumberFromString(
                 raw,
@@ -39,7 +35,6 @@ const parseGlobalPhoneNumber = (inputPhone, defaultCountryIso = null) => {
         }
     }
 
-    // SUCCESS CASE: Valid parsed phone number
     if (parsed && parsed.isValid()) {
         return {
             isValid: true,
@@ -50,7 +45,6 @@ const parseGlobalPhoneNumber = (inputPhone, defaultCountryIso = null) => {
         };
     }
 
-    // FALLBACK CASE: Invalid or incomplete phone number handling
     const cleanDigits = raw.replace(/[^\d+]/g, "");
     let fallbackCode = null;
     let fallbackIso = null;

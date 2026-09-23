@@ -1,50 +1,47 @@
-const Driver = require("../Schema/Driver");
+const Driver = require("../schema/Driver");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const cloudinary = require("../config/cloudinary");
 const { parseGlobalPhoneNumber } = require("../utils/CountryCode");
 
 const generateToken = (id) => {
-  return jwt.sign(
-    { id: id.toString() },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
 };
 
 const generateDriverReferenceId = () => {
-  const random = Math.random()
-    .toString(36)
-    .substring(2, 8)
-    .toUpperCase();
-
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `DRV-${Date.now()}-${random}`;
 };
 
 const uploadToCloudinary = (buffer, folder) => {
   return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error) return reject(error);
-
-        resolve({
-          url: result.secure_url,
-          public_id: result.public_id,
-        });
-      }
-    ).end(buffer);
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder,
+          resource_type: "image",
+        },
+        (error, result) => {
+          if (error) {
+            return reject(error);
+          }
+          resolve({
+            url: result.secure_url,
+            public_id: result.public_id,
+          });
+        }
+      )
+      .end(buffer);
   });
 };
 
-// REGISTER DRIVER
 const registerDriver = async (req, res) => {
   try {
-    const {
+    let {
       Name,
+      CountryCode,
       PhoneNumber,
       Email,
       Password,
@@ -55,70 +52,16 @@ const registerDriver = async (req, res) => {
       backgroundCheckConsent,
     } = req.body;
 
-    const ConfirmPassword =
-      req.body.ConfirmPassword || req.body.confirmPassword;
-
-    const requiredFields = {
-      Name,
-      PhoneNumber,
-      Email,
-      Password,
-      ConfirmPassword,
-      CnicNumber,
-      License,
-      LicenseExpiryDate,
-    };
-
-    const missingFields = Object.keys(requiredFields).filter((field) => {
-      const value = requiredFields[field];
-      return (
-        value === undefined ||
-        value === null ||
-        String(value).trim() === ""
-      );
-    });
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Please fill all required fields.",
-        missingFields,
-      });
-    }
-
-    if (Password !== ConfirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Password and Confirm Password do not match.",
-      });
-    }
-
-    const licenseExpiry = new Date(LicenseExpiryDate);
-
-    if (isNaN(licenseExpiry.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid license expiry date.",
-      });
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const expiryDate = new Date(licenseExpiry);
-    expiryDate.setHours(0, 0, 0, 0);
-
-    if (expiryDate < today) {
+    if (!Name || !PhoneNumber || !Password || !Email) {
       return res.status(400).json({
         success: false,
         message:
-          "License is already expired. Please provide a valid license expiry date.",
+          "Please fill all required fields: Name, PhoneNumber, Password and Email",
       });
     }
 
     const files = req.files || {};
-
-    const requiredFiles = [
+    const requiredImages = [
       "driverPhoto",
       "CnicFront",
       "CnicBack",
@@ -126,28 +69,26 @@ const registerDriver = async (req, res) => {
       "LicenseBack",
     ];
 
-    const missingFiles = requiredFiles.filter(
-      (field) => !files[field]?.[0]
-    );
-
-    if (missingFiles.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Required driver documents are missing.",
-        missingFiles,
-      });
+    for (const field of requiredImages) {
+      if (!files[field]?.[0]) {
+        return res.status(400).json({
+          success: false,
+          message: `Missing required image: ${field}`,
+        });
+      }
     }
 
-    const parsedPhone = parseGlobalPhoneNumber(
-      String(PhoneNumber).trim(),
-      CountryIso || "PK"
-    );
+    const rawInput =
+      CountryCode && !PhoneNumber.startsWith("+")
+        ? `${CountryCode}${PhoneNumber}`
+        : PhoneNumber;
+
+    const parsedPhone = parseGlobalPhoneNumber(rawInput, CountryIso || "PK");
 
     if (!parsedPhone || !parsedPhone.isValid) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid phone number. Please enter a valid international phone number.",
+        message: "Invalid phone number or country code.",
       });
     }
 
@@ -155,10 +96,7 @@ const registerDriver = async (req, res) => {
     const finalPhoneNumber = parsedPhone.formattedLocal;
     const finalCountryIso = parsedPhone.countryIso;
 
-    const cleanName = Name.trim();
     const cleanEmail = Email.toLowerCase().trim();
-    const cleanCnic = CnicNumber.trim();
-    const cleanLicense = License.trim();
 
     const existingDriver = await Driver.findOne({
       $or: [
@@ -166,85 +104,56 @@ const registerDriver = async (req, res) => {
           PhoneNumber: finalPhoneNumber,
           CountryCode: finalCountryCode,
         },
-        { Email: cleanEmail },
-        { CnicNumber: cleanCnic },
-        { License: cleanLicense },
+        {
+          Email: cleanEmail,
+        },
       ],
     });
 
     if (existingDriver) {
-      let message = "Driver already exists.";
-
-      if (
-        existingDriver.PhoneNumber === finalPhoneNumber &&
-        existingDriver.CountryCode === finalCountryCode
-      ) {
-        message = "Driver already exists with this phone number.";
-      } else if (existingDriver.Email === cleanEmail) {
-        message = "Driver already exists with this email.";
-      } else if (existingDriver.CnicNumber === cleanCnic) {
-        message = "Driver already exists with this CNIC.";
-      } else if (existingDriver.License === cleanLicense) {
-        message = "Driver already exists with this license number.";
-      }
-
-      return res.status(409).json({
+      return res.status(400).json({
         success: false,
-        message,
+        message: "Driver already exists with this phone number or email",
       });
     }
 
-    const [
-      driverPhoto,
-      CnicFront,
-      CnicBack,
-      LicenseFront,
-      LicenseBack,
-    ] = await Promise.all([
-      uploadToCloudinary(
-        files.driverPhoto[0].buffer,
-        "drivers/driverphoto"
-      ),
-      uploadToCloudinary(
-        files.CnicFront[0].buffer,
-        "drivers/cnic"
-      ),
-      uploadToCloudinary(
-        files.CnicBack[0].buffer,
-        "drivers/cnic"
-      ),
-      uploadToCloudinary(
-        files.LicenseFront[0].buffer,
-        "drivers/license"
-      ),
-      uploadToCloudinary(
-        files.LicenseBack[0].buffer,
-        "drivers/license"
-      ),
-    ]);
+    const driverPhoto = await uploadToCloudinary(
+      files.driverPhoto[0].buffer,
+      "drivers/driverphoto"
+    );
+    const CnicFront = await uploadToCloudinary(
+      files.CnicFront[0].buffer,
+      "drivers/cnic"
+    );
+    const CnicBack = await uploadToCloudinary(
+      files.CnicBack[0].buffer,
+      "drivers/cnic"
+    );
+    const LicenseFront = await uploadToCloudinary(
+      files.LicenseFront[0].buffer,
+      "drivers/license"
+    );
+    const LicenseBack = await uploadToCloudinary(
+      files.LicenseBack[0].buffer,
+      "drivers/license"
+    );
 
     const hashedPassword = await bcrypt.hash(Password, 10);
     const driverReferenceId = generateDriverReferenceId();
 
     const newDriver = new Driver({
-      Name: cleanName,
-      driverReferenceId,
+      Name: Name.trim(),
       CountryCode: finalCountryCode,
       PhoneNumber: finalPhoneNumber,
       CountryIso: finalCountryIso,
       Email: cleanEmail,
-      CnicNumber: cleanCnic,
-      License: cleanLicense,
-      LicenseExpiryDate: licenseExpiry,
       Password: hashedPassword,
+      CnicNumber: CnicNumber ? CnicNumber.trim() : undefined,
+      License: License ? License.trim() : undefined,
+      LicenseExpiryDate,
       backgroundCheckConsent:
-        backgroundCheckConsent === true ||
-        backgroundCheckConsent === "true",
-      verificationStatus: "Pending",
-      accountStatus: "Active",
-      updateRequired: false,
-      expiryWarning: null,
-      updateRequestStatus: "None",
+        backgroundCheckConsent === true || backgroundCheckConsent === "true",
+      driverReferenceId,
       driverPhoto,
       CnicFront,
       CnicBack,
@@ -253,15 +162,14 @@ const registerDriver = async (req, res) => {
     });
 
     await newDriver.save();
+
     const token = generateToken(newDriver._id);
     const driverResponse = newDriver.toObject();
     delete driverResponse.Password;
-    delete driverResponse.rememberMe;
 
     return res.status(201).json({
       success: true,
-      message:
-        "Driver registered successfully. Your account is pending admin verification.",
+      message: "Driver registered successfully",
       token,
       driver: driverResponse,
     });
@@ -269,13 +177,10 @@ const registerDriver = async (req, res) => {
     console.error("Register Driver Error:", error);
 
     if (error.code === 11000) {
-      const duplicateField =
-        Object.keys(error.keyPattern || {})[0];
-
+      const duplicateField = Object.keys(error.keyPattern || {})[0];
       return res.status(409).json({
         success: false,
-        message:
-          `Driver already exists with this ${duplicateField}.`,
+        message: `Driver already exists with this ${duplicateField}`,
       });
     }
 
@@ -283,10 +188,9 @@ const registerDriver = async (req, res) => {
       const validationErrors = Object.values(error.errors).map(
         (err) => err.message
       );
-
       return res.status(400).json({
         success: false,
-        message: "Driver data validation failed.",
+        message: "Driver data validation failed",
         errors: validationErrors,
       });
     }
@@ -300,18 +204,20 @@ const registerDriver = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message:
-        "Unable to register driver. Please try again later.",
+      message: "Unable to register driver. Please try again later.",
     });
   }
 };
 
-// GET ALL DRIVERS
 const getDrivers = async (req, res) => {
   try {
-    const drivers = await Driver.find()
-      .select("-Password -rememberMe")
-      .sort({ createdAt: -1 });
+    const filter = {};
+    if (req.query.status) filter.verificationStatus = req.query.status;
+    if (req.query.complete !== undefined) {
+      filter.registrationComplete = req.query.complete === "true";
+    }
+
+    const drivers = await Driver.find(filter).select("-Password");
 
     return res.status(200).json({
       success: true,
@@ -320,25 +226,21 @@ const getDrivers = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Drivers Error:", error);
-
     return res.status(500).json({
       success: false,
-      message:
-        "Unable to retrieve drivers. Please try again later.",
+      message: "Unable to retrieve drivers. Please try again later.",
     });
   }
 };
 
-// GET DRIVER BY ID
 const getDriverById = async (req, res) => {
   try {
-    const driver = await Driver.findById(req.params.id)
-      .select("-Password -rememberMe");
+    const driver = await Driver.findById(req.params.id).select("-Password");
 
     if (!driver) {
       return res.status(404).json({
         success: false,
-        message: "Driver not found.",
+        message: "Driver not found",
       });
     }
 
@@ -348,11 +250,193 @@ const getDriverById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Driver By ID Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to retrieve driver. Please try again later.",
+    });
+  }
+};
+
+const updateDriver = async (req, res) => {
+  try {
+    const updates = { ...req.body };
+
+    delete updates.Password;
+    delete updates.ConfirmPassword;
+    delete updates.driverReferenceId;
+
+    if (updates.PhoneNumber) {
+      const rawInput =
+        updates.CountryCode && !updates.PhoneNumber.startsWith("+")
+          ? `${updates.CountryCode}${updates.PhoneNumber}`
+          : updates.PhoneNumber;
+
+      const parsedPhone = parseGlobalPhoneNumber(
+        rawInput,
+        updates.CountryIso || "PK"
+      );
+
+      if (parsedPhone && parsedPhone.isValid) {
+        updates.CountryCode = parsedPhone.countryCode;
+        updates.PhoneNumber = parsedPhone.formattedLocal;
+        updates.CountryIso = parsedPhone.countryIso;
+      }
+    }
+
+    const files = req.files || {};
+
+    if (files.driverPhoto?.[0]) {
+      updates.driverPhoto = await uploadToCloudinary(
+        files.driverPhoto[0].buffer,
+        "drivers/driverphoto"
+      );
+    }
+    if (files.CnicFront?.[0]) {
+      updates.CnicFront = await uploadToCloudinary(
+        files.CnicFront[0].buffer,
+        "drivers/cnic"
+      );
+    }
+    if (files.CnicBack?.[0]) {
+      updates.CnicBack = await uploadToCloudinary(
+        files.CnicBack[0].buffer,
+        "drivers/cnic"
+      );
+    }
+    if (files.LicenseFront?.[0]) {
+      updates.LicenseFront = await uploadToCloudinary(
+        files.LicenseFront[0].buffer,
+        "drivers/license"
+      );
+    }
+    if (files.LicenseBack?.[0]) {
+      updates.LicenseBack = await uploadToCloudinary(
+        files.LicenseBack[0].buffer,
+        "drivers/license"
+      );
+    }
+
+    const updatedDriver = await Driver.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).select("-Password");
+
+    if (!updatedDriver) {
+      return res.status(404).json({
+        success: false,
+        message: "Driver not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Driver updated successfully",
+      driver: updatedDriver,
+    });
+  } catch (error) {
+    console.error("Update Driver Error:", error);
+
+    if (error.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern || {})[0];
+      return res.status(409).json({
+        success: false,
+        message: `Driver already exists with this ${duplicateField}`,
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map(
+        (err) => err.message
+      );
+      return res.status(400).json({
+        success: false,
+        message: "Driver data validation failed",
+        errors: validationErrors,
+      });
+    }
 
     return res.status(500).json({
       success: false,
-      message:
-        "Unable to retrieve driver. Please try again later.",
+      message: "Unable to update driver. Please try again later.",
+    });
+  }
+};
+
+const savePreferredRoutes = async (req, res) => {
+  try {
+    const { driverId, startPoint, endPoint, time } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({ success: false, message: "Driver ID is required" });
+    }
+
+    if (!startPoint) {
+      return res.status(400).json({ success: false, message: "Start Point is required" });
+    }
+
+    const updatedDriver = await Driver.findByIdAndUpdate(
+      driverId,
+      {
+        $set: {
+          preferredRoutes: {
+            startPoint,
+            endPoint: endPoint || "",
+            time: time || "",
+          },
+        },
+      },
+      { new: true }
+    ).select("-Password");
+
+    if (!updatedDriver) {
+      return res.status(404).json({ success: false, message: "Driver not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Preferred routes saved successfully",
+      driver: updatedDriver,
+    });
+  } catch (error) {
+    console.error("Save Preferred Routes Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save preferred routes. Please try again later.",
+    });
+  }
+};
+
+const saveAvailability = async (req, res) => {
+  try {
+    const { driverId, availability } = req.body;
+
+    if (!driverId) {
+      return res.status(400).json({ success: false, message: "Driver ID is required" });
+    }
+
+    const updatedDriver = await Driver.findByIdAndUpdate(
+      driverId,
+      {
+        $set: { availability },
+      },
+      { new: true }
+    ).select("-Password");
+
+    if (!updatedDriver) {
+      return res.status(404).json({ success: false, message: "Driver not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Availability saved successfully",
+      driver: updatedDriver,
+    });
+  } catch (error) {
+    console.error("Save Availability Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save availability. Please try again later.",
     });
   }
 };
@@ -361,4 +445,7 @@ module.exports = {
   registerDriver,
   getDrivers,
   getDriverById,
+  updateDriver,
+  savePreferredRoutes,
+  saveAvailability,
 };

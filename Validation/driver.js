@@ -1,10 +1,6 @@
 const Joi = require("joi");
 
 const DriverValidationSchema = Joi.object({
-
-  // ==========================================
-  // DRIVER NAME
-  // ==========================================
   Name: Joi.string()
     .trim()
     .min(2)
@@ -17,10 +13,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "Name is required",
     }),
 
-  // ==========================================
-  // PHONE NUMBER (UPDATED FOR INTERNATIONAL FORMAT)
-  // Allows optional '+' sign followed by 7 to 15 digits
-  // ==========================================
   PhoneNumber: Joi.string()
     .trim()
     .pattern(/^\+?[0-9]{7,15}$/)
@@ -32,9 +24,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "Phone number is required",
     }),
 
-  // ==========================================
-  // EMAIL
-  // ==========================================
   Email: Joi.string()
     .email()
     .lowercase()
@@ -46,10 +35,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "Email is required",
     }),
 
-  // ==========================================
-  // CNIC NUMBER
-  // Format: XXXXX-XXXXXXX-X
-  // ==========================================
   CnicNumber: Joi.string()
     .trim()
     .pattern(/^[0-9]{5}-[0-9]{7}-[0-9]{1}$/)
@@ -61,9 +46,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "CNIC number is required",
     }),
 
-  // ==========================================
-  // PASSWORD
-  // ==========================================
   Password: Joi.string()
     .min(6)
     .max(128)
@@ -77,9 +59,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "Password is required",
     }),
 
-  // ==========================================
-  // CONFIRM PASSWORD
-  // ==========================================
   ConfirmPassword: Joi.string()
     .required()
     .valid(Joi.ref("Password"))
@@ -91,9 +70,6 @@ const DriverValidationSchema = Joi.object({
         "Confirm Password is required",
     }),
 
-  // ==========================================
-  // LICENSE NUMBER
-  // ==========================================
   License: Joi.string()
     .trim()
     .required()
@@ -102,9 +78,6 @@ const DriverValidationSchema = Joi.object({
       "any.required": "License number is required",
     }),
 
-  // ==========================================
-  // LICENSE EXPIRY DATE
-  // ==========================================
   LicenseExpiryDate: Joi.date()
     .iso()
     .greater("now")
@@ -112,20 +85,14 @@ const DriverValidationSchema = Joi.object({
     .messages({
       "date.format":
         "License expiry date must be in YYYY-MM-DD format",
-
       "date.base":
         "Invalid license expiry date",
-
       "date.greater":
         "License expiry date must be a future date",
-
       "any.required":
         "License expiry date is required",
     }),
 
-  // ==========================================
-  // BACKGROUND CHECK CONSENT
-  // ==========================================
   backgroundCheckConsent: Joi.boolean()
     .truthy("true", "1")
     .falsy("false", "0")
@@ -139,7 +106,6 @@ const DriverValidationSchema = Joi.object({
       "any.required":
         "Background check consent is required",
     }),
-
 }).unknown(true);
 
 module.exports = DriverValidationSchema;

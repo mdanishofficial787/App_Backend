@@ -1,10 +1,6 @@
 const mongoose = require("mongoose");
-const Vehicle = require("../Schema/Vehicle");
+const Vehicle = require("../schema/Vehicle");
 const cloudinary = require("../config/cloudinary");
-
-// ==========================================
-// CLOUDINARY UPLOAD
-// ==========================================
 
 const uploadToCloudinary = (file, folder) => {
   return new Promise((resolve, reject) => {
@@ -14,7 +10,9 @@ const uploadToCloudinary = (file, folder) => {
         resource_type: "image",
       },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          return reject(error);
+        }
 
         resolve({
           url: result.secure_url,
@@ -27,19 +25,26 @@ const uploadToCloudinary = (file, folder) => {
   });
 };
 
-// ==========================================
-// CLOUDINARY DELETE
-// ==========================================
-
 const deleteFromCloudinary = (publicId) => {
   return new Promise((resolve, reject) => {
-    if (!publicId) return resolve();
+    if (!publicId) {
+      return resolve();
+    }
 
     cloudinary.uploader.destroy(
       publicId,
-      { resource_type: "image" },
+      {
+        resource_type: "image",
+      },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error(
+            `Failed to delete Cloudinary image: ${publicId}`,
+            error
+          );
+
+          return reject(error);
+        }
 
         resolve(result);
       }
@@ -47,47 +52,28 @@ const deleteFromCloudinary = (publicId) => {
   });
 };
 
-// ==========================================
-// UPDATE VEHICLE
-// ==========================================
-
 const updateVehicle = async (req, res) => {
-  const newUploadedFiles = [];
-  const oldFilesToDelete = [];
+  const newUploadedPublicIds = [];
+  const oldPublicIdsToDelete = [];
 
   try {
-    // ==========================================
-    // 1. DRIVER ID FROM TOKEN
-    // ==========================================
-
     const driverId = req.user?.id;
 
-    if (
-      !driverId ||
-      !mongoose.Types.ObjectId.isValid(driverId)
-    ) {
+    if (!driverId || !mongoose.Types.ObjectId.isValid(driverId)) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized: Invalid driver token.",
       });
     }
 
-    // ==========================================
-    // 2. VEHICLE ID
-    // ==========================================
-
     const { id } = req.params;
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid vehicle ID.",
+        message: "Invalid Vehicle ID format.",
       });
     }
-
-    // ==========================================
-    // 3. FIND DRIVER'S VEHICLE
-    // ==========================================
 
     const vehicle = await Vehicle.findOne({
       _id: id,
@@ -101,42 +87,54 @@ const updateVehicle = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // 4. PROTECTED FIELDS
-    // ==========================================
-
-    delete req.body._id;
     delete req.body.driver;
     delete req.body.createdBy;
     delete req.body.updatedBy;
     delete req.body.verificationStatus;
 
-    // ==========================================
-    // 5. TEXT FIELDS
-    // ==========================================
+    if (req.body.registrationNumber !== undefined) {
+      const formattedRegNum = String(req.body.registrationNumber)
+        .trim()
+        .toUpperCase();
+
+      if (!formattedRegNum) {
+        return res.status(400).json({
+          success: false,
+          message: "Registration number cannot be empty.",
+        });
+      }
+
+      const existingVehicle = await Vehicle.findOne({
+        registrationNumber: formattedRegNum,
+        _id: { $ne: id },
+      });
+
+      if (existingVehicle) {
+        return res.status(409).json({
+          success: false,
+          message: "Registration number already belongs to another vehicle.",
+        });
+      }
+
+      vehicle.registrationNumber = formattedRegNum;
+    }
 
     const textFields = [
       "vehicleMake",
       "vehicleModel",
       "variant",
+      "numberOfSeats",
       "vehicleColor",
     ];
 
     textFields.forEach((field) => {
       if (req.body[field] !== undefined) {
-        const value = String(req.body[field]).trim();
-
-        if (!value) {
-          throw new Error(`${field} cannot be empty.`);
-        }
-
-        vehicle[field] = value;
+        vehicle[field] =
+          typeof req.body[field] === "string"
+            ? req.body[field].trim()
+            : req.body[field];
       }
     });
-
-    // ==========================================
-    // 6. NUMBER OF SEATS
-    // ==========================================
 
     if (req.body.numberOfSeats !== undefined) {
       const seats = Number(req.body.numberOfSeats);
@@ -144,63 +142,16 @@ const updateVehicle = async (req, res) => {
       if (!Number.isInteger(seats) || seats < 1) {
         return res.status(400).json({
           success: false,
-          message:
-            "Number of seats must be a valid number greater than 0.",
+          message: "Number of seats must be a valid number greater than 0.",
         });
       }
 
       vehicle.numberOfSeats = seats;
     }
 
-    // ==========================================
-    // 7. REGISTRATION NUMBER
-    // ==========================================
-
-    if (req.body.registrationNumber !== undefined) {
-      const registrationNumber = String(
-        req.body.registrationNumber
-      )
-        .trim()
-        .toUpperCase();
-
-      if (!registrationNumber) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Registration number cannot be empty.",
-        });
-      }
-
-      const existingVehicle = await Vehicle.findOne({
-        registrationNumber,
-        _id: { $ne: id },
-      });
-
-      if (existingVehicle) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Registration number already belongs to another vehicle.",
-        });
-      }
-
-      vehicle.registrationNumber = registrationNumber;
-    }
-
-    // ==========================================
-    // 8. GET FILES
-    // ==========================================
-
     const files = req.files || {};
-
-    const registrationBookFront =
-      files.registrationBookFront?.[0];
-
-    const registrationBookBack =
-      files.registrationBookBack?.[0];
-
-    const frontView =
-      files.frontView?.[0];
+    const registrationBook = files.registrationBook?.[0];
+    const frontView = files.frontView?.[0];
 
     const allowedImageTypes = [
       "image/jpeg",
@@ -208,184 +159,88 @@ const updateVehicle = async (req, res) => {
       "image/png",
     ];
 
-    // ==========================================
-    // 9. UPDATE REGISTRATION BOOK FRONT
-    // ==========================================
-
-    if (registrationBookFront) {
-      if (
-        !allowedImageTypes.includes(
-          registrationBookFront.mimetype
-        )
-      ) {
+    if (registrationBook) {
+      if (!allowedImageTypes.includes(registrationBook.mimetype)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Registration book front must be JPG, JPEG or PNG.",
+          message: "Registration book must be JPG, JPEG or PNG image.",
         });
       }
 
-      if (
-        vehicle.registrationBook?.front?.public_id
-      ) {
-        oldFilesToDelete.push(
-          vehicle.registrationBook.front.public_id
-        );
+      if (vehicle.registrationBook?.public_id) {
+        oldPublicIdsToDelete.push(vehicle.registrationBook.public_id);
       }
 
-      const uploaded = await uploadToCloudinary(
-        registrationBookFront,
+      const uploadResult = await uploadToCloudinary(
+        registrationBook,
         "vehicles/registrationBooks"
       );
 
-      newUploadedFiles.push(uploaded.public_id);
+      newUploadedPublicIds.push(uploadResult.public_id);
 
-      vehicle.registrationBook.front = {
-        url: uploaded.url,
-        public_id: uploaded.public_id,
+      vehicle.registrationBook = {
+        url: uploadResult.url,
+        public_id: uploadResult.public_id,
       };
     }
-
-    // ==========================================
-    // 10. UPDATE REGISTRATION BOOK BACK
-    // ==========================================
-
-    if (registrationBookBack) {
-      if (
-        !allowedImageTypes.includes(
-          registrationBookBack.mimetype
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Registration book back must be JPG, JPEG or PNG.",
-        });
-      }
-
-      if (
-        vehicle.registrationBook?.back?.public_id
-      ) {
-        oldFilesToDelete.push(
-          vehicle.registrationBook.back.public_id
-        );
-      }
-
-      const uploaded = await uploadToCloudinary(
-        registrationBookBack,
-        "vehicles/registrationBooks"
-      );
-
-      newUploadedFiles.push(uploaded.public_id);
-
-      vehicle.registrationBook.back = {
-        url: uploaded.url,
-        public_id: uploaded.public_id,
-      };
-    }
-
-    // ==========================================
-    // 11. UPDATE VEHICLE FRONT IMAGE
-    // ==========================================
 
     if (frontView) {
-      if (
-        !allowedImageTypes.includes(
-          frontView.mimetype
-        )
-      ) {
+      if (!allowedImageTypes.includes(frontView.mimetype)) {
         return res.status(400).json({
           success: false,
-          message:
-            "Vehicle front image must be JPG, JPEG or PNG.",
+          message: "Front vehicle image must be JPG, JPEG or PNG.",
         });
       }
 
-      if (
-        vehicle.vehicleImages?.frontView?.public_id
-      ) {
-        oldFilesToDelete.push(
-          vehicle.vehicleImages.frontView.public_id
-        );
+      if (vehicle.vehicleImages?.frontView?.public_id) {
+        oldPublicIdsToDelete.push(vehicle.vehicleImages.frontView.public_id);
       }
 
-      const uploaded = await uploadToCloudinary(
+      const uploadResult = await uploadToCloudinary(
         frontView,
         "vehicles/images"
       );
 
-      newUploadedFiles.push(uploaded.public_id);
+      newUploadedPublicIds.push(uploadResult.public_id);
 
       vehicle.vehicleImages.frontView = {
-        url: uploaded.url,
-        public_id: uploaded.public_id,
+        url: uploadResult.url,
+        public_id: uploadResult.public_id,
       };
-    }
 
-    // ==========================================
-    // 12. TRACK UPDATED BY
-    // ==========================================
+      vehicle.markModified("vehicleImages.frontView");
+    }
 
     vehicle.updatedBy = driverId;
 
-    // ==========================================
-    // 13. RESET VERIFICATION
-    // ==========================================
-
-    vehicle.verificationStatus = "Pending";
-
-    // ==========================================
-    // 14. SAVE TO MONGODB
-    // ==========================================
-
     const updatedVehicle = await vehicle.save();
 
-    // ==========================================
-    // 15. DELETE OLD CLOUDINARY FILES
-    // ==========================================
-
-    if (oldFilesToDelete.length > 0) {
+    if (oldPublicIdsToDelete.length > 0) {
       await Promise.allSettled(
-        oldFilesToDelete.map((publicId) =>
+        oldPublicIdsToDelete.map((publicId) =>
           deleteFromCloudinary(publicId)
         )
       );
     }
-
-    // ==========================================
-    // 16. RESPONSE
-    // ==========================================
 
     return res.status(200).json({
       success: true,
-      message:
-        "Vehicle updated successfully. Changes have been submitted for admin verification.",
+      message: "Vehicle updated successfully.",
       vehicle: updatedVehicle,
     });
-
   } catch (error) {
-    console.error("Update Vehicle Error:", error);
+    console.error("Vehicle update error:", error);
 
-    // ==========================================
-    // CLEAN NEW CLOUDINARY FILES
-    // ==========================================
-
-    if (newUploadedFiles.length > 0) {
+    if (newUploadedPublicIds.length > 0) {
       await Promise.allSettled(
-        newUploadedFiles.map((publicId) =>
+        newUploadedPublicIds.map((publicId) =>
           deleteFromCloudinary(publicId)
         )
       );
     }
 
-    // ==========================================
-    // DUPLICATE KEY
-    // ==========================================
-
     if (error.code === 11000) {
-      const duplicateField =
-        Object.keys(error.keyPattern || {})[0];
-
+      const duplicateField = Object.keys(error.keyPattern || {})[0];
       return res.status(409).json({
         success: false,
         message:
@@ -395,15 +250,8 @@ const updateVehicle = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // MONGOOSE VALIDATION
-    // ==========================================
-
     if (error.name === "ValidationError") {
-      const errors = Object.values(
-        error.errors
-      ).map((err) => err.message);
-
+      const errors = Object.values(error.errors).map((err) => err.message);
       return res.status(400).json({
         success: false,
         message: "Vehicle validation failed.",
@@ -411,21 +259,13 @@ const updateVehicle = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // GENERAL ERROR
-    // ==========================================
-
     return res.status(500).json({
       success: false,
-      message:
-        "Unable to update vehicle. Please try again later.",
+      message: "Failed to update vehicle.",
+      error: error.message,
     });
   }
 };
-
-// ==========================================
-// EXPORT
-// ==========================================
 
 module.exports = {
   updateVehicle,
