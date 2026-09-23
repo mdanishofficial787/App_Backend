@@ -1,0 +1,9 @@
+{
+  "java.import.exclusions": [
+    "**/android/**",
+    "**/AppData/Local/Pub/Cache/**",
+    "**/.gradle/**",
+    "**/build/**"
+  ],
+  "java.autobuild.enabled": false
+}
